@@ -142,6 +142,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
       
+    case 'setExtensionEnabled':
+      config.enabled = request.enabled === true;
+      chrome.storage.local.set({ extensionEnabled: config.enabled });
+      console.log(`🛠️ Extension ${config.enabled ? 'enabled' : 'disabled'} via popup`);
+      sendResponse({ success: true, enabled: config.enabled });
+      break;
+      
+    case 'openPopup': {
+      const popupUrl = chrome.runtime.getURL('popup.html');
+      chrome.windows.create({
+        url: popupUrl,
+        type: 'popup',
+        width: 420,
+        height: 640,
+        focused: true
+      }, (createdWindow) => {
+        if (chrome.runtime.lastError) {
+          console.error('Failed to open popup window:', chrome.runtime.lastError.message);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          console.log('🪟 Focus Guardian popup opened:', createdWindow?.id);
+          sendResponse({ success: true });
+        }
+      });
+      return true;
+    }
+      
     case 'test':
       sendResponse({ success: true, message: 'Background script responding!' });
       break;
@@ -153,6 +180,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Handle URL checking with AI analysis (Phase 4)
 async function handleUrlCheck(url, html, sendResponse) {
   try {
+    if (!config.enabled) {
+      sendResponse({
+        shouldWarn: false,
+        reason: 'Focus Guardian is turned off',
+        source: 'disabled',
+        extensionEnabled: false
+      });
+      return;
+    }
+    
     const hostname = new URL(url).hostname;
     
     // Increment pages analyzed

@@ -23,8 +23,12 @@ async function loadSavedData() {
       'geminiApiKey',
       'currentTask',
       'blockList',
-      'pagesAnalyzed'
+      'pagesAnalyzed',
+      'extensionEnabled'
     ]);
+    
+    const extensionEnabled = data.extensionEnabled !== false;
+    updateExtensionStateUI(extensionEnabled);
     
     // Load API key (masked)
     if (data.geminiApiKey) {
@@ -88,6 +92,11 @@ function setupEventListeners() {
     const hasKey = e.target.value.trim().length > 0;
     document.getElementById('testApiKey').disabled = !hasKey;
   });
+  
+  const extensionToggle = document.getElementById('extensionToggle');
+  if (extensionToggle) {
+    extensionToggle.addEventListener('change', handleExtensionToggle);
+  }
 }
 
 // Save API Key
@@ -321,6 +330,59 @@ async function updateStatistics() {
     });
   } catch (error) {
     console.error('Error updating statistics:', error);
+  }
+}
+
+async function handleExtensionToggle(event) {
+  const toggle = event.target;
+  const enabled = toggle.checked;
+  const messageBox = document.getElementById('toggleMessage');
+  toggle.disabled = true;
+  
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'setExtensionEnabled',
+      enabled
+    });
+    
+    if (!response?.success) {
+      throw new Error(response?.error || 'Failed to update extension state');
+    }
+    
+    await chrome.storage.local.set({ extensionEnabled: enabled });
+    updateExtensionStateUI(enabled);
+    
+    if (messageBox) {
+      showMessage(messageBox, enabled ? 'Focus Guardian is active' : 'Focus Guardian is paused', 'success');
+    }
+  } catch (error) {
+    console.error('Error updating extension status:', error);
+    updateExtensionStateUI(!enabled);
+    if (messageBox) {
+      showMessage(messageBox, 'Unable to change status. Please try again.', 'error');
+    }
+  } finally {
+    toggle.disabled = false;
+  }
+}
+
+function updateExtensionStateUI(isEnabled) {
+  const toggle = document.getElementById('extensionToggle');
+  const subtitle = document.getElementById('toggleSubtitle');
+  const statusLabel = document.getElementById('extensionStatus');
+  
+  if (toggle) {
+    toggle.checked = isEnabled;
+  }
+  
+  if (subtitle) {
+    subtitle.textContent = isEnabled ? 'Currently active' : 'Protection paused';
+  }
+  
+  if (statusLabel) {
+    statusLabel.textContent = isEnabled ? 'Active ✓' : 'Paused ✕';
+    statusLabel.classList.toggle('active', isEnabled);
+    statusLabel.classList.toggle('inactive', !isEnabled);
   }
 }
 

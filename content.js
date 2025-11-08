@@ -5,6 +5,7 @@ console.log('🌐 Focus Guardian loaded on:', window.location.href);
 let warningShown = false;
 let lastUrl = window.location.href;
 let checkTimeout = null;
+let focusGoalNoticeVisible = false;
 
 // Wait for page to fully load
 if (document.readyState === 'loading') {
@@ -102,6 +103,21 @@ async function checkPageStatus() {
     });
     
     console.log('📊 Received response:', response);
+    
+    if (response && (response.source === 'disabled' || response.extensionEnabled === false)) {
+      console.log('⏸️ Focus Guardian disabled. Skipping monitoring.');
+      hideWarningOverlay();
+      hideFocusGoalNotice();
+      warningShown = false;
+      return;
+    }
+    
+    if (response && response.source === 'no-task') {
+      showFocusGoalNotice(response);
+      return;
+    }
+    
+    hideFocusGoalNotice();
     
     if (response && response.shouldWarn && !warningShown) {
       console.log('⚠️ Showing warning overlay');
@@ -327,6 +343,100 @@ function hideWarningOverlay() {
       warningShown = false;
     }, 200);
   }
+}
+
+function showFocusGoalNotice(data) {
+  if (focusGoalNoticeVisible) return;
+  
+  focusGoalNoticeVisible = true;
+  
+  const notice = document.createElement('div');
+  notice.id = 'focus-goal-required-notice';
+  notice.innerHTML = `
+    <style>
+      #focus-goal-required-notice {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.65);
+        z-index: 2147483647;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      .fg-goal-card {
+        width: min(90%, 420px);
+        background: #fff;
+        color: #1f1f1f;
+        border-radius: 20px;
+        padding: 32px;
+        text-align: center;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+        animation: fgNoticeFade 0.35s ease;
+      }
+      .fg-goal-icon {
+        font-size: 60px;
+        margin-bottom: 16px;
+      }
+      .fg-goal-card h3 {
+        margin: 0 0 12px 0;
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .fg-goal-card p {
+        margin: 0 0 18px 0;
+        font-size: 15px;
+        line-height: 1.5;
+        color: #444;
+      }
+      .fg-goal-card button {
+        width: 100%;
+        padding: 14px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 12px 30px rgba(102, 126, 234, 0.35);
+      }
+      @keyframes fgNoticeFade {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    </style>
+    <div class="fg-goal-card">
+      <div class="fg-goal-icon">📝</div>
+      <h3>Set your focus goal</h3>
+      <p>${data?.reason || 'Focus Guardian needs your goal to analyze sites.'}</p>
+      <button id="fg-open-popup">Open Focus Guardian</button>
+    </div>
+  `;
+  
+  document.body.appendChild(notice);
+  
+  const openBtn = document.getElementById('fg-open-popup');
+  if (openBtn) {
+    openBtn.addEventListener('click', () => {
+      hideFocusGoalNotice();
+      chrome.runtime.sendMessage({ action: 'openPopup' }).catch(() => {});
+    });
+  }
+}
+
+function hideFocusGoalNotice() {
+  if (!focusGoalNoticeVisible) return;
+  
+  const notice = document.getElementById('focus-goal-required-notice');
+  if (notice) {
+    notice.remove();
+  }
+  
+  focusGoalNoticeVisible = false;
 }
 
 // Escape HTML to prevent XSS
