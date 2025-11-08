@@ -96,7 +96,14 @@ const FocusGuardianContent = (() => {
         html
       });
       
-      console.log('📊 Received response:', response);
+    console.log('📊 Received response:', response);
+    
+    if (
+      response?.reason === 'AI did not provide clear answer - allowing access by default' &&
+      response.rawAiResponse
+    ) {
+      console.warn('Focus Guardian: raw AI response (unclear):', response.rawAiResponse);
+    }
       
       if (response && (response.source === 'disabled' || response.extensionEnabled === false)) {
         console.log('⏸️ Focus Guardian disabled. Skipping monitoring.');
@@ -217,6 +224,7 @@ const FocusGuardianContent = (() => {
           gap: 12px;
           justify-content: center;
           margin-top: 24px;
+          flex-wrap: wrap;
         }
         
         .fg-button {
@@ -251,6 +259,19 @@ const FocusGuardianContent = (() => {
           background: #e0f2ff;
         }
         
+        .fg-button-link {
+          background: transparent;
+          color: #1f6feb;
+          border: none;
+          text-decoration: underline;
+          flex: 0;
+          padding: 0 8px;
+        }
+        
+        .fg-button-link:hover {
+          color: #0f73d9;
+        }
+        
         .fg-stats {
           margin-top: 20px;
           padding-top: 20px;
@@ -273,14 +294,17 @@ const FocusGuardianContent = (() => {
           ${isBlocked ? '🚫 This site is in your block list' : reason}
         </p>
         
-        <div class="fg-button-group">
-          <button class="fg-button fg-button-primary" id="fg-go-back">
-            ← Go Back
-          </button>
-          <button class="fg-button fg-button-secondary" id="fg-continue">
-            Continue Anyway
-          </button>
-        </div>
+      <div class="fg-button-group">
+        <button class="fg-button fg-button-primary" id="fg-go-back">
+          ← Go Back
+        </button>
+        <button class="fg-button fg-button-secondary" id="fg-continue">
+          Continue Anyway
+        </button>
+        <button class="fg-button fg-button-link" id="fg-allow-site">
+          Always allow
+        </button>
+      </div>
         
         <div class="fg-stats">
           Staying focused helps you achieve your goals faster! 🎯
@@ -300,6 +324,13 @@ const FocusGuardianContent = (() => {
       hideWarningOverlay();
       sendBackgroundMessage('userContinued');
     });
+    
+    const allowButton = document.getElementById('fg-allow-site');
+    if (allowButton) {
+      allowButton.addEventListener('click', () => {
+        allowCurrentSite(data?.url || window.location.href);
+      });
+    }
     
     sendBackgroundMessage('warningShown');
     
@@ -429,6 +460,18 @@ const FocusGuardianContent = (() => {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  function allowCurrentSite(targetUrl) {
+    const url = targetUrl || window.location.href;
+    sendBackgroundMessage('allowCurrentUrl', { url })
+      .then(() => {
+        console.log('✅ Site added to allow list:', url);
+        hideWarningOverlay();
+      })
+      .catch(error => {
+        console.error('Failed to add site to allow list:', error);
+      });
   }
   
   function sendBackgroundMessage(action, data = {}) {

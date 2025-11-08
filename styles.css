@@ -187,7 +187,7 @@ section h2 {
   gap: 8px;
 }
 
-.api-input, .task-input, .blocklist-input {
+.api-input, .task-input, .blocklist-input, .allowlist-input {
   width: 100%;
   padding: 10px 12px;
   border: 2px solid #e9ecef;
@@ -197,12 +197,12 @@ section h2 {
   transition: border-color 0.3s;
 }
 
-.api-input:focus, .task-input:focus, .blocklist-input:focus {
+.api-input:focus, .task-input:focus, .blocklist-input:focus, .allowlist-input:focus {
   outline: none;
   border-color: #1f6feb;
 }
 
-.task-input, .blocklist-input {
+.task-input, .blocklist-input, .allowlist-input {
   resize: vertical;
   line-height: 1.5;
 }
@@ -359,6 +359,10 @@ section h2 {
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
+}
+
+.tag.tag-allow {
+  background: #12b7fb;
 }
 
 .no-data {

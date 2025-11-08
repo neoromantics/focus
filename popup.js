@@ -9,6 +9,8 @@ const ELEMENT_IDS = {
   saveTask: 'saveTask',
   blockListInput: 'blockListInput',
   saveBlockList: 'saveBlockList',
+  allowListInput: 'allowListInput',
+  saveAllowList: 'saveAllowList',
   extensionToggle: 'extensionToggle',
   toggleSubtitle: 'toggleSubtitle',
   extensionStatus: 'extensionStatus',
@@ -16,6 +18,7 @@ const ELEMENT_IDS = {
   apiMessage: 'apiMessage',
   taskMessage: 'taskMessage',
   blockListMessage: 'blockListMessage',
+  allowListMessage: 'allowListMessage',
   statusIndicator: 'statusIndicator',
   statusText: 'statusText',
   currentUrl: 'currentUrl',
@@ -24,7 +27,8 @@ const ELEMENT_IDS = {
   timesWentBack: 'timesWentBack',
   timesContinued: 'timesContinued',
   aiAnalysisCount: 'aiAnalysisCount',
-  blockListDisplay: 'blockListDisplay'
+  blockListDisplay: 'blockListDisplay',
+  allowListDisplay: 'allowListDisplay'
 };
 
 class PopupController {
@@ -66,6 +70,7 @@ class PopupController {
     testApiKey?.addEventListener('click', () => this.testApiConnection());
     saveTask?.addEventListener('click', () => this.saveTask());
     saveBlockList?.addEventListener('click', () => this.saveBlockList());
+    this.elements.saveAllowList?.addEventListener('click', () => this.saveAllowList());
     apiKeyInput.addEventListener('input', this.onApiInputChanged);
     extensionToggle?.addEventListener('change', this.handleExtensionToggle);
   }
@@ -76,6 +81,7 @@ class PopupController {
         'geminiApiKey',
         'currentTask',
         'blockList',
+        'allowList',
         'pagesAnalyzed',
         'extensionEnabled'
       ]);
@@ -100,10 +106,16 @@ class PopupController {
         this.displayBlockList(data.blockList);
       }
       
+      if (data.allowList && data.allowList.length > 0 && this.elements.allowListInput) {
+        this.elements.allowListInput.value = data.allowList.join('\n');
+        this.displayAllowList(data.allowList);
+      }
+      
       console.log('Loaded saved data:', {
         hasApiKey: !!data.geminiApiKey,
         hasTask: !!data.currentTask,
-        blockListCount: data.blockList?.length || 0
+        blockListCount: data.blockList?.length || 0,
+        allowListCount: data.allowList?.length || 0
       });
     } catch (error) {
       console.error('Error loading saved data:', error);
@@ -214,7 +226,7 @@ class PopupController {
     const blockListText = this.elements.blockListInput.value.trim();
     const messageDiv = this.elements.blockListMessage;
     
-    const domains = parseBlockList(blockListText);
+    const domains = parseDomainList(blockListText);
     
     if (domains.length === 0) {
       this.showMessage(messageDiv, 'Please enter at least one valid domain', 'warning');
@@ -234,6 +246,31 @@ class PopupController {
     }
   }
   
+  async saveAllowList() {
+    if (!this.elements.allowListInput) return;
+    const allowListText = this.elements.allowListInput.value.trim();
+    const messageDiv = this.elements.allowListMessage;
+    
+    const domains = parseDomainList(allowListText);
+    
+    if (domains.length === 0) {
+      this.showMessage(messageDiv, 'Please enter at least one valid domain', 'warning');
+      return;
+    }
+    
+    try {
+      await chrome.storage.local.set({ allowList: domains });
+      this.displayAllowList(domains);
+      this.showMessage(messageDiv, `✅ Saved ${domains.length} allowed domains!`, 'success');
+      
+      chrome.runtime.sendMessage({ action: 'allowListUpdated', allowList: domains }).catch(() => {});
+      console.log('Allow list saved:', domains);
+    } catch (error) {
+      console.error('Error saving allow list:', error);
+      this.showMessage(messageDiv, '❌ Failed to save allow list', 'error');
+    }
+  }
+  
   displayBlockList(domains) {
     const container = this.elements.blockListDisplay;
     if (!container) return;
@@ -244,6 +281,18 @@ class PopupController {
     }
     
     container.innerHTML = domains.map(domain => `<span class="tag">${domain}</span>`).join('');
+  }
+  
+  displayAllowList(domains) {
+    const container = this.elements.allowListDisplay;
+    if (!container) return;
+    
+    if (!domains || domains.length === 0) {
+      container.innerHTML = '<span class="no-data">No domains allowed yet</span>';
+      return;
+    }
+    
+    container.innerHTML = domains.map(domain => `<span class="tag tag-allow">${domain}</span>`).join('');
   }
   
   updateApiStatus(isConfigured, text = null) {
@@ -386,7 +435,7 @@ class PopupController {
   }
 }
 
-function parseBlockList(text) {
+function parseDomainList(text) {
   return text
     .split('\n')
     .map(line => line.trim().toLowerCase())

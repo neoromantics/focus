@@ -115,6 +115,30 @@
         </div>
       </section>
 
+      <!-- Allow List Section -->
+      <section class="config-section">
+        <h2>✅ Allow List</h2>
+        <div class="config-card">
+          <p class="section-description">Sites that never need warnings. We'll skip checks here.</p>
+          <div class="input-group">
+            <label for="allowListInput">Add domains (one per line):</label>
+            <textarea 
+              id="allowListInput" 
+              placeholder="notion.so&#10;calendar.google.com&#10;companywiki.com"
+              rows="4"
+              class="allowlist-input"
+            ></textarea>
+          </div>
+          <button id="saveAllowList" class="btn btn-secondary">✅ Save Allow List</button>
+          <div id="allowListMessage" class="message"></div>
+          
+          <div class="current-blocks" id="currentAllows">
+            <p class="small-label">Currently allowed:</p>
+            <div id="allowListDisplay" class="tag-container"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- Status Section -->
       <section class="status-section">
         <h2>📊 Current Status</h2>

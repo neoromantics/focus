@@ -9,6 +9,7 @@ const STORAGE_KEYS = [
   'geminiApiKey',
   'currentTask',
   'blockList',
+  'allowList',
   'extensionEnabled',
   'urlCache',
   'pagesAnalyzed',
@@ -45,6 +46,7 @@ let config = {
   apiKey: null,
   currentTask: null,
   blockList: [],
+  allowList: [],
   enabled: true,
   cache: {}, // URL cache for AI decisions
   stats: { ...defaultStats }
@@ -124,6 +126,31 @@ const cacheManager = {
   }
 };
 
+async function updateAllowList(list = []) {
+  const sanitized = Array.from(new Set(
+    (list || [])
+      .map(item => (item || '').toLowerCase().trim())
+      .filter(Boolean)
+  ));
+  config.allowList = sanitized;
+  await storage.set({ allowList: config.allowList });
+}
+
+async function addHostnameToAllowList(hostname) {
+  const cleanHost = (hostname || '').toLowerCase().trim();
+  if (!cleanHost) return;
+  if (!config.allowList.includes(cleanHost)) {
+    config.allowList.push(cleanHost);
+    await storage.set({ allowList: config.allowList });
+  }
+}
+
+function isUserAllowed(hostname = '') {
+  return config.allowList.some(allowed => 
+    allowed && (hostname.includes(allowed) || allowed.includes(hostname))
+  );
+}
+
 // 🔥 FIX: Load configuration immediately when service worker starts
 loadConfiguration();
 
@@ -139,7 +166,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       extensionEnabled: true,
       installTime: new Date().toISOString(),
       ...defaultStats,
-      blockList: DEFAULT_BLOCK_LIST
+      blockList: DEFAULT_BLOCK_LIST,
+      allowList: []
     });
   }
   
@@ -155,6 +183,7 @@ async function loadConfiguration() {
     config.apiKey = data.geminiApiKey || null;
     config.currentTask = data.currentTask || null;
     config.blockList = data.blockList || [...DEFAULT_BLOCK_LIST];
+    config.allowList = data.allowList || [];
     config.enabled = data.extensionEnabled !== false;
     cacheManager.loadFrom(data.urlCache || {});
     statsManager.initFrom(data);
@@ -164,6 +193,7 @@ async function loadConfiguration() {
       apiKeyLength: config.apiKey ? config.apiKey.length : 0,
       hasTask: !!config.currentTask,
       blockListSize: config.blockList.length,
+      allowListSize: config.allowList.length,
       cacheSize: Object.keys(config.cache).length,
       enabled: config.enabled,
       stats: config.stats
@@ -190,6 +220,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
       
+    case 'allowListUpdated':
+      updateAllowList(request.allowList || []).then(() => {
+        console.log('✅ Allow list updated:', config.allowList);
+        sendResponse({ success: true });
+      }).catch(error => {
+        console.error('Failed to update allow list:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+      return true;
+      
     case 'apiKeyUpdated':
       // 🔥 FIX: Reload configuration when API key is saved
       loadConfiguration().then(() => {
@@ -214,6 +254,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleWarningShown(request.url);
       sendResponse({ success: true });
       break;
+      
+    case 'allowCurrentUrl':
+      handleAllowCurrentUrl(request.url).then(result => {
+        sendResponse(result);
+      }).catch(error => {
+        console.error('Failed to add allow entry:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+      return true;
       
     case 'userWentBack':
       handleUserWentBack(request.url);
@@ -298,6 +347,20 @@ async function handleUrlCheck(url, html, sendResponse) {
         currentTask: config.currentTask || 'Stay focused',
         cached: false,
         source: 'blocklist'
+      });
+      return;
+    }
+    
+    // Step 1.5: Allow list check
+    if (isUserAllowed(hostname)) {
+      console.log('✅ URL is in allow list:', hostname);
+      sendResponse({
+        shouldWarn: false,
+        isAllowed: true,
+        reason: 'This site is in your allow list',
+        currentTask: config.currentTask || 'Stay focused',
+        cached: false,
+        source: 'allowlist'
       });
       return;
     }
@@ -570,6 +633,7 @@ Respond with ONLY a JSON object in this exact format:
             shouldWarn: false,
             isDistraction: false,
             reason: 'AI did not provide clear answer - allowing access by default',
+            rawAiResponse: aiResponse,
             timestamp: Date.now()
           };
         }
@@ -626,7 +690,8 @@ function shouldSkipAIAnalysis(url) {
       'localhost'
     ];
     
-    return allowedDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain));
+    const builtinAllowed = allowedDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain));
+    return builtinAllowed || isUserAllowed(hostname);
   } catch {
     return true;
   }
@@ -646,6 +711,28 @@ async function handleUserWentBack(url) {
 async function handleUserContinued(url) {
   await statsManager.increment('timesContinued');
   console.log(`→ User continued (total: ${config.stats.timesContinued})`);
+}
+
+async function handleAllowCurrentUrl(url) {
+  const hostname = getHostname(url);
+  if (!hostname) {
+    return { success: false, error: 'Invalid URL' };
+  }
+  
+  await addHostnameToAllowList(hostname);
+  
+  if (url) {
+    cacheManager.set(url, {
+      shouldWarn: false,
+      isDistraction: false,
+      reason: 'You allowed this site',
+      source: 'allowlist',
+      timestamp: Date.now()
+    });
+  }
+  
+  console.log(`✅ Added to allow list: ${hostname}`);
+  return { success: true, hostname };
 }
 
 // Monitor tab updates
