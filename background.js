@@ -2,19 +2,125 @@
 
 console.log('🚀 Focus Guardian Background Service Worker Started (Phase 4 - AI Enabled)!');
 
+const storage = chrome.storage.local;
+
+const DEFAULT_BLOCK_LIST = ['netflix.com', 'youtube.com', 'tiktok.com'];
+const STORAGE_KEYS = [
+  'geminiApiKey',
+  'currentTask',
+  'blockList',
+  'extensionEnabled',
+  'urlCache',
+  'pagesAnalyzed',
+  'warningsShown',
+  'timesWentBack',
+  'timesContinued',
+  'aiAnalysisCount'
+];
+
+const STAT_KEYS = [
+  'pagesAnalyzed',
+  'warningsShown',
+  'timesWentBack',
+  'timesContinued',
+  'aiAnalysisCount'
+];
+
+const CACHE_TTL_MS = 3600000; // 1 hour
+const CACHE_MAX_ENTRIES = 100;
+const CACHE_TRIMMED_SIZE = 50;
+const CACHE_CLEAN_INTERVAL_MS = CACHE_TTL_MS;
+const STATS_SAVE_INTERVAL_MS = 300000; // 5 minutes
+
 // Store configuration in memory for quick access
+const defaultStats = {
+  pagesAnalyzed: 0,
+  warningsShown: 0,
+  timesWentBack: 0,
+  timesContinued: 0,
+  aiAnalysisCount: 0
+};
+
 let config = {
   apiKey: null,
   currentTask: null,
   blockList: [],
   enabled: true,
   cache: {}, // URL cache for AI decisions
-  stats: {
-    pagesAnalyzed: 0,
-    warningsShown: 0,
-    timesWentBack: 0,
-    timesContinued: 0,
-    aiAnalysisCount: 0
+  stats: { ...defaultStats }
+};
+
+const statsManager = {
+  initFrom(data = {}) {
+    STAT_KEYS.forEach((key) => {
+      config.stats[key] = data[key] || 0;
+    });
+  },
+  async increment(key) {
+    if (!STAT_KEYS.includes(key)) return;
+    config.stats[key] = (config.stats[key] || 0) + 1;
+    await storage.set({ [key]: config.stats[key] });
+  },
+  async persistAll() {
+    await storage.set({ ...config.stats });
+  }
+};
+
+const cacheManager = {
+  loadFrom(cache = {}) {
+    config.cache = cache;
+  },
+  get(url) {
+    const cached = config.cache[url];
+    if (!cached) return null;
+    const cacheAge = Date.now() - (cached.timestamp || 0);
+    if (cacheAge < CACHE_TTL_MS) {
+      return cached;
+    }
+    delete config.cache[url];
+    return null;
+  },
+  set(url, decision) {
+    config.cache[url] = {
+      ...decision,
+      timestamp: Date.now()
+    };
+    storage.set({ urlCache: config.cache });
+  },
+  clear() {
+    config.cache = {};
+    storage.set({ urlCache: {} });
+  },
+  cleanup() {
+    const cacheKeys = Object.keys(config.cache);
+    if (cacheKeys.length === 0) {
+      return;
+    }
+    
+    const now = Date.now();
+    let cacheChanged = false;
+    
+    cacheKeys.forEach(url => {
+      const age = now - (config.cache[url].timestamp || 0);
+      if (age > CACHE_TTL_MS) {
+        delete config.cache[url];
+        cacheChanged = true;
+      }
+    });
+    
+    const remainingKeys = Object.keys(config.cache);
+    if (remainingKeys.length > CACHE_MAX_ENTRIES) {
+      const entries = Object.entries(config.cache)
+        .sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0))
+        .slice(0, CACHE_TRIMMED_SIZE);
+      config.cache = Object.fromEntries(entries);
+      cacheChanged = true;
+    }
+    
+    if (cacheChanged) {
+      storage.set({ urlCache: config.cache });
+      console.log('✅ Cache cleaned. New size:', Object.keys(config.cache).length);
+    }
   }
 };
 
@@ -29,15 +135,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     console.log('🎉 First time installation!');
     
     // Set default configuration
-    await chrome.storage.local.set({
+    await storage.set({
       extensionEnabled: true,
       installTime: new Date().toISOString(),
-      pagesAnalyzed: 0,
-      warningsShown: 0,
-      timesWentBack: 0,
-      timesContinued: 0,
-      aiAnalysisCount: 0,
-      blockList: ['netflix.com', 'youtube.com', 'tiktok.com']
+      ...defaultStats,
+      blockList: DEFAULT_BLOCK_LIST
     });
   }
   
@@ -48,29 +150,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // Load configuration from storage
 async function loadConfiguration() {
   try {
-    const data = await chrome.storage.local.get([
-      'geminiApiKey',
-      'currentTask',
-      'blockList',
-      'extensionEnabled',
-      'urlCache',
-      'pagesAnalyzed',
-      'warningsShown',
-      'timesWentBack',
-      'timesContinued',
-      'aiAnalysisCount'
-    ]);
+    const data = await storage.get(STORAGE_KEYS);
     
     config.apiKey = data.geminiApiKey || null;
     config.currentTask = data.currentTask || null;
-    config.blockList = data.blockList || [];
+    config.blockList = data.blockList || [...DEFAULT_BLOCK_LIST];
     config.enabled = data.extensionEnabled !== false;
-    config.cache = data.urlCache || {};
-    config.stats.pagesAnalyzed = data.pagesAnalyzed || 0;
-    config.stats.warningsShown = data.warningsShown || 0;
-    config.stats.timesWentBack = data.timesWentBack || 0;
-    config.stats.timesContinued = data.timesContinued || 0;
-    config.stats.aiAnalysisCount = data.aiAnalysisCount || 0;
+    cacheManager.loadFrom(data.urlCache || {});
+    statsManager.initFrom(data);
     
     console.log('📋 Configuration loaded:', {
       hasApiKey: !!config.apiKey,
@@ -93,11 +180,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   switch (request.action) {
     case 'taskUpdated':
-      config.currentTask = request.task;
-      // Clear cache when task changes
-      config.cache = {};
-      chrome.storage.local.set({ urlCache: {} });
-      console.log('✅ Task updated:', request.task, '(cache cleared)');
+      handleTaskUpdated(request.task);
       sendResponse({ success: true });
       break;
       
@@ -144,7 +227,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'setExtensionEnabled':
       config.enabled = request.enabled === true;
-      chrome.storage.local.set({ extensionEnabled: config.enabled });
+      storage.set({ extensionEnabled: config.enabled });
       console.log(`🛠️ Extension ${config.enabled ? 'enabled' : 'disabled'} via popup`);
       sendResponse({ success: true, enabled: config.enabled });
       break;
@@ -190,20 +273,23 @@ async function handleUrlCheck(url, html, sendResponse) {
       return;
     }
     
-    const hostname = new URL(url).hostname;
+    const hostname = getHostname(url);
+    if (!hostname) {
+      sendResponse({
+        shouldWarn: false,
+        reason: 'Invalid URL provided',
+        source: 'invalid-url'
+      });
+      return;
+    }
     
     // Increment pages analyzed
-    config.stats.pagesAnalyzed++;
-    await chrome.storage.local.set({ pagesAnalyzed: config.stats.pagesAnalyzed });
+    await statsManager.increment('pagesAnalyzed');
     
     console.log(`📊 Analyzing page #${config.stats.pagesAnalyzed}:`, hostname);
     
     // Step 1: Check if in strict block list (highest priority)
-    const isBlocked = config.blockList.some(blocked => 
-      hostname.includes(blocked) || blocked.includes(hostname)
-    );
-    
-    if (isBlocked) {
+    if (isStrictlyBlocked(hostname)) {
       console.log('🚫 URL is in block list:', hostname);
       sendResponse({
         shouldWarn: true,
@@ -217,23 +303,16 @@ async function handleUrlCheck(url, html, sendResponse) {
     }
     
     // Step 2: Check cache
-    if (config.cache[url]) {
-      const cacheAge = Date.now() - (config.cache[url].timestamp || 0);
-      const cacheValid = cacheAge < 3600000; // 1 hour
-      
-      if (cacheValid) {
-        console.log('📦 Using cached AI decision for:', hostname);
-        sendResponse({
-          ...config.cache[url],
-          cached: true,
-          currentTask: config.currentTask,
-          source: 'cache'
-        });
-        return;
-      } else {
-        console.log('🔄 Cache expired for:', hostname);
-        delete config.cache[url];
-      }
+    const cachedDecision = cacheManager.get(url);
+    if (cachedDecision) {
+      console.log('📦 Using cached AI decision for:', hostname);
+      sendResponse({
+        ...cachedDecision,
+        cached: true,
+        currentTask: config.currentTask,
+        source: 'cache'
+      });
+      return;
     }
     
     // Step 3: Check if we should skip AI analysis
@@ -300,17 +379,10 @@ async function handleUrlCheck(url, html, sendResponse) {
       const aiResult = await analyzePageWithAI(url, html, config.currentTask, config.apiKey);
       
       // Increment AI analysis counter
-      config.stats.aiAnalysisCount++;
-      await chrome.storage.local.set({ aiAnalysisCount: config.stats.aiAnalysisCount });
+      await statsManager.increment('aiAnalysisCount');
       
       // Cache the result
-      config.cache[url] = {
-        ...aiResult,
-        timestamp: Date.now()
-      };
-      
-      // Save cache (async, don't wait)
-      chrome.storage.local.set({ urlCache: config.cache });
+      cacheManager.set(url, aiResult);
       
       console.log('✅ AI Analysis complete:', aiResult.shouldWarn ? 'DISTRACTION' : 'ON_TRACK');
       
@@ -401,7 +473,7 @@ Respond with ONLY a JSON object in this exact format:
       
       // 🔥 SOLUTION 1: Use response_mime_type for JSON mode
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: {
@@ -493,6 +565,7 @@ Respond with ONLY a JSON object in this exact format:
         console.log('⚠️ All parsing failed, retrying...');
         if (attempt >= maxRetries) {
           console.log('❌ Max retries reached, defaulting to ALLOW (safe default)');
+          console.log('🧾 Raw AI response (unclear):', aiResponse);
           return {
             shouldWarn: false,
             isDistraction: false,
@@ -561,20 +634,17 @@ function shouldSkipAIAnalysis(url) {
 
 // Event handlers
 async function handleWarningShown(url) {
-  config.stats.warningsShown++;
-  await chrome.storage.local.set({ warningsShown: config.stats.warningsShown });
+  await statsManager.increment('warningsShown');
   console.log(`⚠️ Warning shown (total: ${config.stats.warningsShown})`);
 }
 
 async function handleUserWentBack(url) {
-  config.stats.timesWentBack++;
-  await chrome.storage.local.set({ timesWentBack: config.stats.timesWentBack });
+  await statsManager.increment('timesWentBack');
   console.log(`← User went back (total: ${config.stats.timesWentBack})`);
 }
 
 async function handleUserContinued(url) {
-  config.stats.timesContinued++;
-  await chrome.storage.local.set({ timesContinued: config.stats.timesContinued });
+  await statsManager.increment('timesContinued');
   console.log(`→ User continued (total: ${config.stats.timesContinued})`);
 }
 
@@ -582,7 +652,7 @@ async function handleUserContinued(url) {
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && config.enabled) {
     try {
-      const hostname = new URL(tab.url).hostname;
+      const hostname = getHostname(tab.url);
       
       if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
         return;
@@ -591,11 +661,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       console.log('📄 Page completed loading:', hostname);
       
       // Check block list
-      const isBlocked = config.blockList.some(blocked => 
-        hostname.includes(blocked) || blocked.includes(hostname)
-      );
-      
-      if (isBlocked) {
+      if (isStrictlyBlocked(hostname)) {
         console.log('🚫 Blocked site detected:', hostname);
         
         try {
@@ -624,7 +690,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
     if (tab.url && !tab.url.startsWith('chrome://')) {
-      const hostname = new URL(tab.url).hostname;
+      const hostname = getHostname(tab.url);
       console.log('🔄 Switched to tab:', hostname);
     }
   } catch (error) {
@@ -634,41 +700,37 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
 // Periodic cache cleanup
 setInterval(() => {
-  const cacheSize = Object.keys(config.cache).length;
-  if (cacheSize > 100) {
-    console.log('🧹 Cleaning cache... Current size:', cacheSize);
-    
-    const now = Date.now();
-    Object.keys(config.cache).forEach(url => {
-      const age = now - (config.cache[url].timestamp || 0);
-      if (age > 3600000) {
-        delete config.cache[url];
-      }
-    });
-    
-    if (Object.keys(config.cache).length > 50) {
-      const entries = Object.entries(config.cache)
-        .sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0))
-        .slice(0, 50);
-      config.cache = Object.fromEntries(entries);
-    }
-    
-    chrome.storage.local.set({ urlCache: config.cache });
-    console.log('✅ Cache cleaned. New size:', Object.keys(config.cache).length);
-  }
-}, 3600000);
+  cacheManager.cleanup();
+}, CACHE_CLEAN_INTERVAL_MS);
 
 // Save stats periodically
 setInterval(async () => {
-  await chrome.storage.local.set({
-    urlCache: config.cache,
-    pagesAnalyzed: config.stats.pagesAnalyzed,
-    warningsShown: config.stats.warningsShown,
-    timesWentBack: config.stats.timesWentBack,
-    timesContinued: config.stats.timesContinued,
-    aiAnalysisCount: config.stats.aiAnalysisCount
-  });
+  await storage.set({ urlCache: config.cache });
+  await statsManager.persistAll();
   console.log('💾 Stats saved:', config.stats);
-}, 300000);
+}, STATS_SAVE_INTERVAL_MS);
 
 console.log('✅ Background script initialized (Phase 4 - AI Enabled with JSON Mode)');
+
+function handleTaskUpdated(task) {
+  config.currentTask = task;
+  cacheManager.clear();
+  console.log('✅ Task updated:', task, '(cache cleared)');
+}
+
+function isStrictlyBlocked(hostname = '') {
+  return config.blockList.some(blocked => 
+    hostname.includes(blocked) || blocked.includes(hostname)
+  );
+}
+
+function getHostname(url = '') {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+// Legacy helper names retained for compatibility (if other files import them)
+const clearCache = () => cacheManager.clear();

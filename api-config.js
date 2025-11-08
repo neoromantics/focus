@@ -2,7 +2,7 @@
 
 // Current Gemini Models (as of November 2025)
 const GEMINI_MODELS = {
-  FLASH: 'gemini-2.5-flash',      // Latest fast model (recommended)
+  FLASH: 'gemini-2.5-flash-lite', // Latest fast model (recommended)
   PRO: 'gemini-2.5-pro',          // Latest pro model
   FLASH_LEGACY: 'gemini-1.5-flash' // Legacy flash model
 };
