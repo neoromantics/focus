@@ -227,16 +227,17 @@ class PopupController {
     const messageDiv = this.elements.blockListMessage;
     
     const domains = parseDomainList(blockListText);
-    
-    if (domains.length === 0) {
-      this.showMessage(messageDiv, 'Please enter at least one valid domain', 'warning');
-      return;
-    }
-    
+
     try {
       await chrome.storage.local.set({ blockList: domains });
       this.displayBlockList(domains);
-      this.showMessage(messageDiv, `✅ Saved ${domains.length} blocked domains!`, 'success');
+      this.showMessage(
+        messageDiv,
+        domains.length === 0
+          ? '✔ Block list cleared.'
+          : `✅ Saved ${domains.length} blocked domains!`,
+        'success'
+      );
       
       chrome.runtime.sendMessage({ action: 'blockListUpdated', blockList: domains }).catch(() => {});
       console.log('Block list saved:', domains);
@@ -252,16 +253,17 @@ class PopupController {
     const messageDiv = this.elements.allowListMessage;
     
     const domains = parseDomainList(allowListText);
-    
-    if (domains.length === 0) {
-      this.showMessage(messageDiv, 'Please enter at least one valid domain', 'warning');
-      return;
-    }
-    
+
     try {
       await chrome.storage.local.set({ allowList: domains });
       this.displayAllowList(domains);
-      this.showMessage(messageDiv, `✅ Saved ${domains.length} allowed domains!`, 'success');
+      this.showMessage(
+        messageDiv,
+        domains.length === 0
+          ? '✔ Allow list cleared.'
+          : `✅ Saved ${domains.length} allowed domains!`,
+        'success'
+      );
       
       chrome.runtime.sendMessage({ action: 'allowListUpdated', allowList: domains }).catch(() => {});
       console.log('Allow list saved:', domains);
@@ -436,11 +438,23 @@ class PopupController {
 }
 
 function parseDomainList(text) {
-  return text
-    .split('\n')
+  if (!text) {
+    return [];
+  }
+  
+  const domainRegex = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
+  const candidates = text
+    .split(/[\n,]/)
     .map(line => line.trim().toLowerCase())
-    .filter(line => line.length > 0)
-    .filter(line => line.includes('.') && !line.includes(' '));
+    .filter(Boolean)
+    .map(entry => entry.replace(/^https?:\/\//, ''))
+    .map(entry => entry.replace(/^www\./, ''))
+    .map(entry => entry.replace(/\/.*$/, ''))
+    .map(entry => entry.replace(/\s+/g, ''));
+  
+  return Array.from(new Set(
+    candidates.filter(candidate => domainRegex.test(candidate))
+  ));
 }
 
 function setButtonLoading(button, isLoading, loadingLabel) {
