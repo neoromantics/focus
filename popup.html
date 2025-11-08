@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus Guardian</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎯 Focus Guardian</h1>
+      <p class="subtitle">AI-Powered Focus Assistant v4.1.0</p>
+    </header>
+
+    <main>
+      <!-- API Key Configuration Section -->
+      <section class="config-section">
+        <h2>🔑 API Configuration</h2>
+        <div class="config-card">
+          <div class="api-status" id="apiStatus">
+            <span class="status-indicator" id="statusIndicator">⚠️</span>
+            <span id="statusText">API Key not configured</span>
+          </div>
+          
+          <div class="input-group">
+            <label for="apiKeyInput">Gemini API Key:</label>
+            <div class="input-with-button">
+              <input 
+                type="password" 
+                id="apiKeyInput" 
+                placeholder="Enter your Gemini API key"
+                class="api-input"
+              >
+              <button id="toggleKeyVisibility" class="icon-btn" title="Show/Hide">👁️</button>
+            </div>
+          </div>
+          
+          <div class="button-group">
+            <button id="saveApiKey" class="btn btn-primary">💾 Save API Key</button>
+            <button id="testApiKey" class="btn btn-secondary" disabled>🧪 Test Connection</button>
+          </div>
+          
+          <div id="apiMessage" class="message"></div>
+          
+          <div class="info-box">
+            <p class="info-text">
+              <strong>🔒 Your API key is stored securely</strong><br>
+              It's encrypted and saved locally in Chrome's storage. Never shared.
+            </p>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="link">
+              Get your free Gemini API key →
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Task Configuration Section -->
+      <section class="config-section">
+        <h2>📝 Your Focus Goal</h2>
+        <div class="config-card">
+          <div class="input-group">
+            <label for="taskInput">What's your current task?</label>
+            <textarea 
+              id="taskInput" 
+              placeholder="E.g., Working on quarterly report, Studying for exam, Writing blog post..."
+              rows="3"
+              class="task-input"
+            ></textarea>
+          </div>
+          <button id="saveTask" class="btn btn-primary">💾 Save Goal</button>
+          <div id="taskMessage" class="message"></div>
+        </div>
+      </section>
+
+      <!-- Block List Section -->
+      <section class="config-section">
+        <h2>🚫 Strict Block List</h2>
+        <div class="config-card">
+          <p class="section-description">Sites that should ALWAYS trigger warnings (no AI check)</p>
+          <div class="input-group">
+            <label for="blockListInput">Add domains (one per line):</label>
+            <textarea 
+              id="blockListInput" 
+              placeholder="netflix.com&#10;tiktok.com&#10;youtube.com&#10;hulu.com"
+              rows="4"
+              class="blocklist-input"
+            ></textarea>
+          </div>
+          <button id="saveBlockList" class="btn btn-primary">💾 Save Block List</button>
+          <div id="blockListMessage" class="message"></div>
+          
+          <div class="current-blocks" id="currentBlocks">
+            <p class="small-label">Currently blocked:</p>
+            <div id="blockListDisplay" class="tag-container"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status Section -->
+      <section class="status-section">
+        <h2>📊 Current Status</h2>
+        <div class="status-card">
+          <div class="status-item">
+            <span class="label">Extension Status:</span>
+            <span class="value active" id="extensionStatus">Active ✓</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Current Page:</span>
+            <span class="value" id="currentUrl">Loading...</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Pages Analyzed:</span>
+            <span class="value" id="pagesAnalyzed">0</span>
+          </div>
+          <div class="status-item">
+            <span class="label">AI Analysis Count:</span>
+            <span class="value ai" id="aiAnalysisCount">0</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Warnings Shown:</span>
+            <span class="value" id="warningsShown">0</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Times Went Back:</span>
+            <span class="value success" id="timesWentBack">0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Progress Section -->
+      <section class="info-section">
+        <h2>ℹ️ Setup Progress</h2>
+        <ul class="info-list">
+          <li>
+            <span id="phase1Status">✅ Phase 1: Basic Framework</span>
+            <span class="badge success">Complete</span>
+          </li>
+          <li>
+            <span id="phase2Status">✅ Phase 2: API Configuration</span>
+            <span class="badge success">Complete</span>
+          </li>
+          <li>
+            <span id="phase3Status">✅ Phase 3: Page Detection</span>
+            <span class="badge success">Complete</span>
+          </li>
+          <li>
+            <span id="phase4Status">✅ Phase 4: AI Analysis</span>
+            <span class="badge success">Complete</span>
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <footer>
+      <p class="footer-text">Ready to help you focus! 🚀</p>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
