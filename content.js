@@ -197,8 +197,8 @@ const FocusGuardianContent = (() => {
         
         .fg-warning-task {
           font-size: 15px;
-          color: #667eea;
-          background: #f0f3ff;
+          color: #1f6feb;
+          background: #e0f2ff;
           padding: 12px 16px;
           border-radius: 8px;
           margin: 20px 0;
@@ -232,7 +232,7 @@ const FocusGuardianContent = (() => {
         }
         
         .fg-button-primary {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #1f6feb 0%, #12b7fb 100%);
           color: white;
         }
         
@@ -243,12 +243,12 @@ const FocusGuardianContent = (() => {
         
         .fg-button-secondary {
           background: white;
-          color: #667eea;
-          border: 2px solid #667eea;
+          color: #1f6feb;
+          border: 2px solid #1f6feb;
         }
         
         .fg-button-secondary:hover {
-          background: #f0f3ff;
+          background: #e0f2ff;
         }
         
         .fg-stats {
@@ -369,7 +369,7 @@ const FocusGuardianContent = (() => {
           padding: 14px;
           border: none;
           border-radius: 12px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #1f6feb 0%, #12b7fb 100%);
           color: white;
           font-size: 16px;
           font-weight: 600;

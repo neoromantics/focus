@@ -10,7 +10,7 @@ body {
   width: 450px;
   min-height: 600px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1f6feb 0%, #12b7fb 100%);
   color: #333;
 }
 
@@ -22,7 +22,7 @@ body {
 
 /* Header */
 header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1f6feb 0%, #12b7fb 100%);
   color: white;
   padding: 20px;
   text-align: center;
@@ -146,7 +146,7 @@ section h2 {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1f6feb 0%, #12b7fb 100%);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
@@ -199,7 +199,7 @@ section h2 {
 
 .api-input:focus, .task-input:focus, .blocklist-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #1f6feb;
 }
 
 .task-input, .blocklist-input {
@@ -220,7 +220,7 @@ section h2 {
 
 .icon-btn:hover {
   background: #f8f9fa;
-  border-color: #667eea;
+  border-color: #1f6feb;
 }
 
 /* Buttons */
@@ -242,7 +242,7 @@ section h2 {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1f6feb 0%, #12b7fb 100%);
   color: white;
 }
 
@@ -253,12 +253,12 @@ section h2 {
 
 .btn-secondary {
   background: white;
-  color: #667eea;
-  border: 2px solid #667eea;
+  color: #1f6feb;
+  border: 2px solid #1f6feb;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #667eea;
+  background: #1f6feb;
   color: white;
 }
 
@@ -324,7 +324,7 @@ section h2 {
 
 .link {
   font-size: 13px;
-  color: #667eea;
+  color: #1f6feb;
   text-decoration: none;
   font-weight: 600;
 }
@@ -354,7 +354,7 @@ section h2 {
 .tag {
   display: inline-block;
   padding: 5px 10px;
-  background: #667eea;
+  background: #1f6feb;
   color: white;
   border-radius: 12px;
   font-size: 12px;
@@ -418,7 +418,7 @@ section h2 {
 }
 
 .status-item .value.ai {
-  color: #667eea;
+  color: #1f6feb;
   font-weight: 600;
 }
 
@@ -484,12 +484,12 @@ main::-webkit-scrollbar-track {
 }
 
 main::-webkit-scrollbar-thumb {
-  background: #667eea;
+  background: #1f6feb;
   border-radius: 4px;
 }
 
 main::-webkit-scrollbar-thumb:hover {
-  background: #5568d3;
+  background: #0f73d9;
 }
 
 /* Animations */
