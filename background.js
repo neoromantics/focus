@@ -1,47 +1,43 @@
 // background.js - Background Service Worker with Phase 4 AI Analysis + JSON Mode
 
+importScripts(
+  'background/constants.js',
+  'background/helpers.js',
+  'background/responses.js'
+);
+
 console.log('Focus Guardian Background Service Worker Started (Phase 4 - AI Enabled)!');
+
+const { FG_CONSTANTS, FG_HELPERS, FG_RESPONSES } = self;
+const {
+  DEFAULT_BLOCK_LIST,
+  DEFAULT_STATS,
+  STORAGE_KEYS,
+  STAT_KEYS,
+  CACHE,
+  STATS_SAVE_INTERVAL_MS,
+  LABELS,
+  PRODUCTIVITY_ALLOWLIST
+} = FG_CONSTANTS;
+
+const {
+  createStatsManager,
+  createCacheManager,
+  sanitizeDomainList,
+  normalizeUrlForAllowList,
+  loadAllowedUrlSignatures,
+  getHostname
+} = FG_HELPERS;
+
+const { buildResponse, responseFactory } = FG_RESPONSES.createResponseTools(
+  () => config,
+  LABELS
+);
 
 const storage = chrome.storage.local;
 
-const DEFAULT_BLOCK_LIST = [];
-const STORAGE_KEYS = [
-  'geminiApiKey',
-  'currentTask',
-  'blockList',
-  'allowList',
-  'allowedUrls',
-  'extensionEnabled',
-  'urlCache',
-  'pagesAnalyzed',
-  'warningsShown',
-  'timesWentBack',
-  'timesContinued',
-  'aiAnalysisCount'
-];
-
-const STAT_KEYS = [
-  'pagesAnalyzed',
-  'warningsShown',
-  'timesWentBack',
-  'timesContinued',
-  'aiAnalysisCount'
-];
-
-const CACHE_TTL_MS = 3600000; // 1 hour
-const CACHE_MAX_ENTRIES = 100;
-const CACHE_TRIMMED_SIZE = 50;
-const CACHE_CLEAN_INTERVAL_MS = CACHE_TTL_MS;
-const STATS_SAVE_INTERVAL_MS = 300000; // 5 minutes
-
 // Store configuration in memory for quick access
-const defaultStats = {
-  pagesAnalyzed: 0,
-  warningsShown: 0,
-  timesWentBack: 0,
-  timesContinued: 0,
-  aiAnalysisCount: 0
-};
+const defaultStats = { ...DEFAULT_STATS };
 
 let config = {
   apiKey: null,
@@ -54,87 +50,19 @@ let config = {
   stats: { ...defaultStats }
 };
 
-const statsManager = {
-  initFrom(data = {}) {
-    STAT_KEYS.forEach((key) => {
-      config.stats[key] = data[key] || 0;
-    });
-  },
-  async increment(key) {
-    if (!STAT_KEYS.includes(key)) return;
-    config.stats[key] = (config.stats[key] || 0) + 1;
-    await storage.set({ [key]: config.stats[key] });
-  },
-  async persistAll() {
-    await storage.set({ ...config.stats });
-  }
-};
+const statsManager = createStatsManager(storage, STAT_KEYS, () => config.stats);
 
-const cacheManager = {
-  loadFrom(cache = {}) {
-    config.cache = cache;
-  },
-  get(url) {
-    const cached = config.cache[url];
-    if (!cached) return null;
-    const cacheAge = Date.now() - (cached.timestamp || 0);
-    if (cacheAge < CACHE_TTL_MS) {
-      return cached;
-    }
-    delete config.cache[url];
-    return null;
-  },
-  set(url, decision) {
-    config.cache[url] = {
-      ...decision,
-      timestamp: Date.now()
-    };
-    storage.set({ urlCache: config.cache });
-  },
-  clear() {
-    config.cache = {};
-    storage.set({ urlCache: {} });
-  },
-  cleanup() {
-    const cacheKeys = Object.keys(config.cache);
-    if (cacheKeys.length === 0) {
-      return;
-    }
-    
-    const now = Date.now();
-    let cacheChanged = false;
-    
-    cacheKeys.forEach(url => {
-      const age = now - (config.cache[url].timestamp || 0);
-      if (age > CACHE_TTL_MS) {
-        delete config.cache[url];
-        cacheChanged = true;
-      }
-    });
-    
-    const remainingKeys = Object.keys(config.cache);
-    if (remainingKeys.length > CACHE_MAX_ENTRIES) {
-      const entries = Object.entries(config.cache)
-        .sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0))
-        .slice(0, CACHE_TRIMMED_SIZE);
-      config.cache = Object.fromEntries(entries);
-      cacheChanged = true;
-    }
-    
-    if (cacheChanged) {
-      storage.set({ urlCache: config.cache });
-      console.log('Cache cleaned. New size:', Object.keys(config.cache).length);
-    }
+const cacheManager = createCacheManager(
+  storage,
+  CACHE,
+  () => config.cache,
+  (newCache) => {
+    config.cache = newCache;
   }
-};
+);
 
 async function updateAllowList(list = []) {
-  const sanitized = Array.from(new Set(
-    (list || [])
-      .map(item => (item || '').toLowerCase().trim())
-      .filter(Boolean)
-  ));
-  config.allowList = sanitized;
+  config.allowList = sanitizeDomainList(list);
   await storage.set({ allowList: config.allowList });
 }
 
@@ -325,22 +253,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function handleUrlCheck(url, html, sendResponse) {
   try {
     if (!config.enabled) {
-      sendResponse({
-        shouldWarn: false,
-        reason: 'Focus Guardian is turned off',
-        source: 'disabled',
-        extensionEnabled: false
-      });
+      sendResponse(responseFactory.disabled());
       return;
     }
     
     const hostname = getHostname(url);
     if (!hostname) {
-      sendResponse({
-        shouldWarn: false,
-        reason: 'Invalid URL provided',
-        source: 'invalid-url'
-      });
+      sendResponse(responseFactory.invalidUrl());
       return;
     }
     
@@ -352,28 +271,18 @@ async function handleUrlCheck(url, html, sendResponse) {
     // Step 1: Check if in strict block list (highest priority)
     if (isStrictlyBlocked(hostname)) {
       console.log('URL is in block list:', hostname);
-      sendResponse({
-        shouldWarn: true,
-        isBlocked: true,
-        reason: 'Site is in your strict block list',
-        currentTask: config.currentTask || 'Stay focused',
-        cached: false,
-        source: 'blocklist'
-      });
+      sendResponse(responseFactory.strictBlock());
       return;
     }
     
     // Step 1.5: Allow list checks
     const allowMatch = getAllowDecision(hostname, url);
     if (allowMatch) {
-      sendResponse({
-        shouldWarn: false,
-        isAllowed: true,
+      sendResponse(buildResponse({
         reason: allowMatch.reason,
-        currentTask: config.currentTask || 'Stay focused',
-        cached: false,
-        source: allowMatch.source
-      });
+        source: allowMatch.source,
+        extras: { isAllowed: true }
+      }));
       return;
     }
     
@@ -393,13 +302,7 @@ async function handleUrlCheck(url, html, sendResponse) {
     // Step 3: Check if we should skip AI analysis
     if (shouldSkipAIAnalysis(url)) {
       console.log('Skipping AI analysis for whitelisted site:', hostname);
-      sendResponse({
-        shouldWarn: false,
-        reason: 'Common productivity site - allowed',
-        currentTask: config.currentTask,
-        cached: false,
-        source: 'whitelist'
-      });
+      sendResponse(responseFactory.productivityAllow());
       return;
     }
     
@@ -409,38 +312,20 @@ async function handleUrlCheck(url, html, sendResponse) {
     if (!config.apiKey) {
       console.log('No API key configured - allowing access');
       console.log('API key in config:', config.apiKey);
-      sendResponse({
-        shouldWarn: false,
-        reason: 'API key not configured - cannot analyze',
-        currentTask: config.currentTask,
-        cached: false,
-        source: 'no-api-key'
-      });
+      sendResponse(responseFactory.noApiKey());
       return;
     }
     
     if (!config.currentTask) {
       console.log('No focus goal set - allowing access');
-      sendResponse({
-        shouldWarn: false,
-        reason: 'No focus goal set - cannot analyze',
-        currentTask: 'Please set a focus goal',
-        cached: false,
-        source: 'no-task'
-      });
+      sendResponse(responseFactory.noTask());
       return;
     }
     
     // Step 5: Check if HTML is provided
     if (!html || html.length === 0) {
       console.log('No HTML provided - allowing access');
-      sendResponse({
-        shouldWarn: false,
-        reason: 'Could not get page content',
-        currentTask: config.currentTask,
-        cached: false,
-        source: 'no-html'
-      });
+      sendResponse(responseFactory.noHtml());
       return;
     }
     
@@ -470,24 +355,16 @@ async function handleUrlCheck(url, html, sendResponse) {
       
     } catch (aiError) {
       console.error('AI Analysis failed:', aiError);
-      sendResponse({
-        shouldWarn: false,
-        reason: 'AI analysis failed - allowing access',
-        error: aiError.message,
-        currentTask: config.currentTask,
-        cached: false,
-        source: 'ai-error'
-      });
+      sendResponse(responseFactory.aiError(aiError.message));
     }
     
   } catch (error) {
     console.error('Error checking URL:', error);
-    sendResponse({
-      shouldWarn: false,
+    sendResponse(buildResponse({
       reason: 'Error occurred during check',
-      error: error.message,
-      source: 'error'
-    });
+      source: 'error',
+      extras: { error: error.message }
+    }));
   }
 }
 
@@ -695,14 +572,9 @@ function shouldSkipAIAnalysis(url) {
     const hostname = new URL(url).hostname;
     
     // Only skip for these specific productivity tools
-    const allowedDomains = [
-      'docs.google.com',
-      'drive.google.com',
-      'gmail.com',
-      'localhost'
-    ];
-    
-    const builtinAllowed = allowedDomains.some(domain => hostname === domain || hostname.endsWith('.'+ domain));
+    const builtinAllowed = PRODUCTIVITY_ALLOWLIST.some(domain => 
+      hostname === domain || hostname.endsWith('.' + domain)
+    );
     return builtinAllowed || isUserAllowed(hostname);
   } catch {
     return true;
@@ -802,7 +674,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 // Periodic cache cleanup
 setInterval(() => {
   cacheManager.cleanup();
-}, CACHE_CLEAN_INTERVAL_MS);
+}, CACHE.CLEAN_INTERVAL_MS);
 
 // Save stats periodically
 setInterval(async () => {
@@ -825,14 +697,6 @@ function isStrictlyBlocked(hostname = '') {
   );
 }
 
-function getHostname(url = '') {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return null;
-  }
-}
-
 function getAllowDecision(hostname, url) {
   if (isUserAllowed(hostname)) {
     console.log('Hostname in allow list:', hostname);
@@ -848,45 +712,5 @@ function getAllowDecision(hostname, url) {
   return null;
 }
 
-function normalizeUrlForAllowList(url = '') {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    let pathname = parsed.pathname.replace(/\/+$/, '');
-    if (!pathname) pathname = '/';
-    const params = new URLSearchParams(parsed.search);
-    const queryKeys = ['q', 'query', 'search', 'keywords'];
-    
-    for (const key of queryKeys) {
-      if (params.has(key)) {
-        const value = (params.get(key) || '').trim().toLowerCase();
-        if (value) {
-          return `${host}|${pathname}|${key}|${value}`;
-        }
-      }
-    }
-    
-    return `${host}|${pathname}`;
-  } catch {
-    return null;
-  }
-}
-
 // Legacy helper names retained for compatibility (if other files import them)
 const clearCache = () => cacheManager.clear();
-
-function loadAllowedUrlSignatures(rawList = []) {
-  const signatures = [];
-  rawList.forEach((entry) => {
-    if (!entry) return;
-    if (entry.includes('|')) {
-      signatures.push(entry);
-    } else {
-      const migrated = normalizeUrlForAllowList(entry);
-      if (migrated) {
-        signatures.push(migrated);
-      }
-    }
-  });
-  return Array.from(new Set(signatures));
-}

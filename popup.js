@@ -67,7 +67,7 @@ class PopupController {
   }
   
   setupEventListeners() {
-    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, saveBlockList, extensionToggle, settingsToggle, statsToggle, recentGoals, allowedUrlList, clearAllowedUrls } = this.elements;
+    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, extensionToggle, settingsToggle, statsToggle, recentGoals, allowedUrlList, clearAllowedUrls } = this.elements;
     
     settingsToggle?.addEventListener('click', () => this.toggleSettingsPanel());
     statsToggle?.addEventListener('click', () => this.toggleStatsPanel());
@@ -79,7 +79,7 @@ class PopupController {
       toggleKeyVisibility?.addEventListener('click', () => {
         const isPassword = apiKeyInput.type === 'password';
         apiKeyInput.type = isPassword ? 'text': 'password';
-        toggleKeyVisibility.textContent = isPassword ? '': '';
+        toggleKeyVisibility.textContent = isPassword ? 'Hide' : 'Show';
       });
       
       apiKeyInput.addEventListener('input', this.onApiInputChanged);
@@ -88,8 +88,8 @@ class PopupController {
     }
     
     saveTask?.addEventListener('click', () => this.saveTask());
-    saveBlockList?.addEventListener('click', () => this.saveBlockList());
-    this.elements.saveAllowList?.addEventListener('click', () => this.saveAllowList());
+    this.elements.saveBlockList?.addEventListener('click', () => this.saveDomainList('block'));
+    this.elements.saveAllowList?.addEventListener('click', () => this.saveDomainList('allow'));
     extensionToggle?.addEventListener('change', this.handleExtensionToggle);
   }
   
@@ -251,56 +251,48 @@ class PopupController {
     }
   }
   
-  async saveBlockList() {
-    if (!this.elements.blockListInput) return;
-    const blockListText = this.elements.blockListInput.value.trim();
-    const messageDiv = this.elements.blockListMessage;
+  async saveDomainList(listType) {
+    const config = this.getListConfig(listType);
+    if (!config?.inputEl) return;
     
-    const domains = parseDomainList(blockListText);
-
+    const domains = parseDomainList(config.inputEl.value.trim());
+    const storagePayload = { [config.storageKey]: domains };
+    
     try {
-      await chrome.storage.local.set({ blockList: domains });
-      this.displayBlockList(domains);
-      this.showMessage(
-        messageDiv,
-        domains.length === 0
-          ? 'Block list cleared.'
-          : ` Saved ${domains.length} blocked domains!`,
-        'success'
-      );
+      await chrome.storage.local.set(storagePayload);
+      config.displayFn(domains);
       
-      chrome.runtime.sendMessage({ action: 'blockListUpdated', blockList: domains }).catch(() => {});
-      console.log('Block list saved:', domains);
+      const successMessage = domains.length === 0
+        ? config.clearedMessage
+        : `Saved ${domains.length} ${config.noun} domains!`;
+      this.showMessage(config.messageEl, successMessage, 'success');
+      
+      chrome.runtime.sendMessage({
+        action: config.runtimeAction,
+        [config.storageKey]: domains
+      }).catch(() => {});
+      
+      console.log(`${config.logLabel} saved:`, domains);
     } catch (error) {
-      console.error('Error saving block list:', error);
-      this.showMessage(messageDiv, 'Failed to save block list', 'error');
+      console.error(`Error saving ${config.logLabel.toLowerCase()}:`, error);
+      this.showMessage(config.messageEl, `Failed to save ${config.logLabel.toLowerCase()}`, 'error');
     }
   }
   
-  async saveAllowList() {
-    if (!this.elements.allowListInput) return;
-    const allowListText = this.elements.allowListInput.value.trim();
-    const messageDiv = this.elements.allowListMessage;
+  getListConfig(listType) {
+    const isBlockList = listType === 'block';
+    const storageKey = isBlockList ? 'blockList' : 'allowList';
     
-    const domains = parseDomainList(allowListText);
-
-    try {
-      await chrome.storage.local.set({ allowList: domains });
-      this.displayAllowList(domains);
-      this.showMessage(
-        messageDiv,
-        domains.length === 0
-          ? 'Allow list cleared.'
-          : ` Saved ${domains.length} allowed domains!`,
-        'success'
-      );
-      
-      chrome.runtime.sendMessage({ action: 'allowListUpdated', allowList: domains }).catch(() => {});
-      console.log('Allow list saved:', domains);
-    } catch (error) {
-      console.error('Error saving allow list:', error);
-      this.showMessage(messageDiv, 'Failed to save allow list', 'error');
-    }
+    return {
+      inputEl: isBlockList ? this.elements.blockListInput : this.elements.allowListInput,
+      messageEl: isBlockList ? this.elements.blockListMessage : this.elements.allowListMessage,
+      storageKey,
+      runtimeAction: isBlockList ? 'blockListUpdated' : 'allowListUpdated',
+      displayFn: isBlockList ? this.displayBlockList.bind(this) : this.displayAllowList.bind(this),
+      clearedMessage: isBlockList ? 'Block list cleared.' : 'Allow list cleared.',
+      noun: isBlockList ? 'blocked' : 'allowed',
+      logLabel: isBlockList ? 'Block list' : 'Allow list'
+    };
   }
   
   displayBlockList(domains) {
