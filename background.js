@@ -3,7 +3,8 @@
 importScripts(
   'background/constants.js',
   'background/helpers.js',
-  'background/responses.js'
+  'background/responses.js',
+  'background/flight.js'
 );
 
 console.log('Focus Background Service Worker Started (Phase 4 - AI Enabled)!');
@@ -53,6 +54,20 @@ let config = {
   flightHistory: []
 };
 
+const flightManager = FG_FLIGHT.createFlightManager({
+  getFlight: () => config.flight,
+  setFlight: (flight) => {
+    config.flight = flight;
+  },
+  getHistory: () => config.flightHistory,
+  setHistory: (history) => {
+    config.flightHistory = history;
+  },
+  storage,
+  flightConstants: FLIGHT,
+  getCurrentTask: () => config.currentTask
+});
+
 const statsManager = createStatsManager(storage, STAT_KEYS, () => config.stats);
 
 const cacheManager = createCacheManager(
@@ -64,135 +79,10 @@ const cacheManager = createCacheManager(
   }
 );
 
-function isFlightActive() {
-  return !!(config.flight && config.flight.status === 'inflight');
-}
-
-function getFlightSnapshot() {
-  const flight = config.flight;
-  if (!flight) {
-    return {
-      active: false,
-      turbulence: 0,
-      limit: FLIGHT.TURBULENCE_LIMIT
-    };
-  }
-  return {
-    active: flight.status === 'inflight',
-    status: flight.status,
-    turbulence: flight.turbulence || 0,
-    limit: FLIGHT.TURBULENCE_LIMIT,
-    startedAt: flight.startedAt,
-    goal: flight.goalSnapshot,
-    durationMs: Date.now() - (flight.startedAt || Date.now()),
-    id: flight.id
-  };
-}
-
-function persistFlightState() {
-  return storage.set({
-    currentFlight: config.flight,
-    flightHistory: config.flightHistory
-  });
-}
-
-async function startFlightSession() {
-  if (config.flight && config.flight.status === 'inflight') {
-    return { success: false, error: 'flight-in-progress', flight: getFlightSnapshot() };
-  }
-  const now = Date.now();
-  config.flight = {
-    id: `flight-${now}`,
-    startedAt: now,
-    goalSnapshot: config.currentTask,
-    turbulence: 0,
-    status: 'inflight',
-    events: []
-  };
-  await persistFlightState();
-  return { success: true, flight: getFlightSnapshot() };
-}
-
-async function endFlightSession({ forcedOutcome = null, skipDurationCheck = false } = {}) {
-  if (!config.flight) {
-    return { success: false, error: 'no-flight' };
-  }
-  const now = Date.now();
-  const durationMs = now - (config.flight.startedAt || now);
-  if (!skipDurationCheck && !forcedOutcome && durationMs < FLIGHT.MIN_DURATION_MS) {
-    // Too short, just clear current flight without recording history
-    config.flight = null;
-    await persistFlightState();
-    return { success: false, tooShort: true, durationMs };
-  }
-
-  const turbulence = config.flight.turbulence || 0;
-  const outcome = forcedOutcome || determineFlightOutcome(turbulence);
-  const record = {
-    id: config.flight.id,
-    goalSnapshot: config.flight.goalSnapshot,
-    startedAt: config.flight.startedAt,
-    completedAt: now,
-    durationMs,
-    turbulence,
-    outcome
-  };
-
-  config.flightHistory = [record, ...config.flightHistory].slice(0, FLIGHT.HISTORY_LIMIT);
-  config.flight = null;
-  await persistFlightState();
-  return { success: true, record, flightHistory: config.flightHistory };
-}
-
-async function registerTurbulenceEvent({ url } = {}) {
-  if (!config.flight || config.flight.status !== 'inflight') {
-    return { applied: false };
-  }
-  config.flight.turbulence = (config.flight.turbulence || 0) + 1;
-  config.flight.events = config.flight.events || [];
-  config.flight.events.push({ type: 'turbulence', url, timestamp: Date.now() });
-  await persistFlightState();
-
-  if (config.flight.turbulence >= FLIGHT.TURBULENCE_LIMIT) {
-    const result = await endFlightSession({ forcedOutcome: 'fail', skipDurationCheck: true });
-    return { applied: true, forcedLanding: true, result };
-  }
-  return { applied: true };
-}
-
-async function rollbackTurbulence() {
-  if (!config.flight || config.flight.status !== 'inflight') {
-    return { success: false, error: 'no-flight' };
-  }
-  if (!config.flight.turbulence) {
-    return { success: false, error: 'no-turbulence' };
-  }
-  config.flight.turbulence = Math.max(0, (config.flight.turbulence || 0) - 1);
-  if (Array.isArray(config.flight.events)) {
-    // Remove the last turbulence event if present
-    let idx = config.flight.events.length - 1;
-    while (idx >= 0) {
-      if (config.flight.events[idx].type === 'turbulence') {
-        config.flight.events.splice(idx, 1);
-        break;
-      }
-      idx--;
-    }
-  }
-  await persistFlightState();
-  return { success: true, flight: getFlightSnapshot() };
-}
-
-function determineFlightOutcome(turbulenceCount = 0) {
-  if (turbulenceCount <= 0) return 'perfect';
-  if (turbulenceCount < FLIGHT.TURBULENCE_LIMIT) return 'delayed';
-  return 'fail';
-}
-
 function respondWithFlight(sendResponse, payload = {}) {
   sendResponse({
     ...payload,
-    flight: getFlightSnapshot()
+    flight: flightManager.getSnapshot()
   });
 }
 
@@ -324,7 +214,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'warningShown':
       handleWarningShown(request.url).then(() => {
-        sendResponse({ success: true, flight: getFlightSnapshot() });
+        sendResponse({ success: true, flight: flightManager.getSnapshot() });
       }).catch(error => {
         console.error('Failed to handle warning event:', error);
         sendResponse({ success: false, error: error.message });
@@ -358,8 +248,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
 
     case 'startFlight':
-      startFlightSession().then(result => {
-        sendResponse({ ...result, flight: getFlightSnapshot(), history: config.flightHistory });
+      flightManager.start().then(result => {
+        sendResponse(result);
       }).catch(error => {
         console.error('Failed to start flight:', error);
         sendResponse({ success: false, error: error.message });
@@ -367,8 +257,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
 
     case 'endFlight':
-      endFlightSession({ forcedOutcome: request.forcedOutcome, skipDurationCheck: request.skipDurationCheck }).then(result => {
-        sendResponse({ ...result, flight: getFlightSnapshot(), history: config.flightHistory });
+      flightManager.end({ forcedOutcome: request.forcedOutcome, skipDurationCheck: request.skipDurationCheck }).then(result => {
+        sendResponse(result);
       }).catch(error => {
         console.error('Failed to end flight:', error);
         sendResponse({ success: false, error: error.message });
@@ -376,8 +266,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
 
     case 'disputeTurbulence':
-      rollbackTurbulence().then(result => {
-        sendResponse({ ...result, flight: getFlightSnapshot() });
+      flightManager.rollbackTurbulence().then(result => {
+        sendResponse(result);
       }).catch(error => {
         console.error('Failed to rollback turbulence:', error);
         sendResponse({ success: false, error: error.message });
@@ -385,7 +275,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
 
     case 'getFlightStatus':
-      sendResponse({ success: true, flight: getFlightSnapshot(), history: config.flightHistory });
+      sendResponse({ success: true, flight: flightManager.getSnapshot(), history: config.flightHistory });
       break;
 
     case 'openPopup': {
@@ -426,7 +316,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Handle URL checking with AI analysis (Phase 4)
 async function handleUrlCheck(url, html, sendResponse) {
   try {
-    if (!config.enabled || !isFlightActive()) {
+    if (!config.enabled || !flightManager.isActive()) {
       respondWithFlight(sendResponse, buildResponse({
         reason: 'Start a focus flight to enable focus mode',
         source: 'no-flight',
@@ -763,10 +653,10 @@ function shouldSkipAIAnalysis(url) {
 // Event handlers
 async function handleWarningShown(url) {
   await statsManager.increment('warningsShown');
-  const turbulenceResult = await registerTurbulenceEvent({ url });
+  const turbulenceResult = await flightManager.registerTurbulence({ url });
   console.log(` Warning shown (total: ${config.stats.warningsShown})`);
   if (turbulenceResult?.applied) {
-    console.log(` ✈️ Turbulence recorded. Count: ${config.flight?.turbulence || 0}/${FLIGHT.TURBULENCE_LIMIT}`);
+    console.log(` ✈️ Turbulence recorded. Count: ${flightManager.getSnapshot().turbulence}/${FLIGHT.TURBULENCE_LIMIT}`);
   }
   if (turbulenceResult?.forcedLanding) {
     console.log(' ⚠️ Flight forced to land due to excessive distractions.');
@@ -831,7 +721,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
               isBlocked: true,
               reason: 'This site is in your block list',
               currentTask: config.currentTask || 'Stay focused',
-              flight: getFlightSnapshot()
+              flight: flightManager.getSnapshot()
             }
           });
         } catch (error) {
