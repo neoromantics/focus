@@ -10,6 +10,7 @@ const STORAGE_KEYS = [
   'currentTask',
   'blockList',
   'allowList',
+  'allowedUrls',
   'extensionEnabled',
   'urlCache',
   'pagesAnalyzed',
@@ -47,6 +48,7 @@ let config = {
   currentTask: null,
   blockList: [],
   allowList: [],
+  allowedUrls: [],
   enabled: true,
   cache: {}, // URL cache for AI decisions
   stats: { ...defaultStats }
@@ -184,6 +186,7 @@ async function loadConfiguration() {
     config.currentTask = data.currentTask || null;
     config.blockList = data.blockList || [...DEFAULT_BLOCK_LIST];
     config.allowList = data.allowList || [];
+    config.allowedUrls = loadAllowedUrlSignatures(data.allowedUrls || []);
     config.enabled = data.extensionEnabled !== false;
     cacheManager.loadFrom(data.urlCache || {});
     statsManager.initFrom(data);
@@ -304,6 +307,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'test':
       sendResponse({ success: true, message: 'Background script responding!'});
       break;
+    
+    case 'allowedUrlsUpdated':
+      config.allowedUrls = loadAllowedUrlSignatures(request.allowedUrls || []);
+      storage.set({ allowedUrls: config.allowedUrls });
+      sendResponse({ success: true });
+      break;
   }
   
   return true;
@@ -351,16 +360,16 @@ async function handleUrlCheck(url, html, sendResponse) {
       return;
     }
     
-    // Step 1.5: Allow list check
-    if (isUserAllowed(hostname)) {
-      console.log('URL is in allow list:', hostname);
+    // Step 1.5: Allow list checks
+    const allowMatch = getAllowDecision(hostname, url);
+    if (allowMatch) {
       sendResponse({
         shouldWarn: false,
         isAllowed: true,
-        reason: 'This site is in your allow list',
+        reason: allowMatch.reason,
         currentTask: config.currentTask || 'Stay focused',
         cached: false,
-        source: 'allowlist'
+        source: allowMatch.source
       });
       return;
     }
@@ -715,24 +724,26 @@ async function handleUserContinued(url) {
 
 async function handleAllowCurrentUrl(url) {
   const hostname = getHostname(url);
-  if (!hostname) {
-    return { success: false, error: 'Invalid URL'};
+  const signature = normalizeUrlForAllowList(url);
+  if (!hostname || !signature) {
+    return { success: false, error: 'Invalid URL' };
   }
   
-  await addHostnameToAllowList(hostname);
-  
-  if (url) {
-    cacheManager.set(url, {
-      shouldWarn: false,
-      isDistraction: false,
-      reason: 'You allowed this site',
-      source: 'allowlist',
-      timestamp: Date.now()
-    });
+  if (!config.allowedUrls.includes(signature)) {
+    config.allowedUrls.push(signature);
+    await storage.set({ allowedUrls: config.allowedUrls });
   }
   
-  console.log(` Added to allow list: ${hostname}`);
-  return { success: true, hostname };
+  cacheManager.set(url, {
+    shouldWarn: false,
+    isDistraction: false,
+    reason: 'You allowed this page',
+    source: 'allowurl',
+    timestamp: Date.now()
+  });
+  
+  console.log(` Added explicit allow entry: ${signature}`);
+  return { success: true, hostname, signature };
 }
 
 // Monitor tab updates
@@ -819,5 +830,60 @@ function getHostname(url = '') {
   }
 }
 
+function getAllowDecision(hostname, url) {
+  if (isUserAllowed(hostname)) {
+    console.log('Hostname in allow list:', hostname);
+    return { source: 'allowlist', reason: 'This site is in your allow list' };
+  }
+  
+  const normalized = normalizeUrlForAllowList(url);
+  if (normalized && config.allowedUrls.includes(normalized)) {
+    console.log('URL signature allowed:', normalized);
+    return { source: 'allowurl', reason: 'You allowed this exact page/query' };
+  }
+  
+  return null;
+}
+
+function normalizeUrlForAllowList(url = '') {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    let pathname = parsed.pathname.replace(/\/+$/, '');
+    if (!pathname) pathname = '/';
+    const params = new URLSearchParams(parsed.search);
+    const queryKeys = ['q', 'query', 'search', 'keywords'];
+    
+    for (const key of queryKeys) {
+      if (params.has(key)) {
+        const value = (params.get(key) || '').trim().toLowerCase();
+        if (value) {
+          return `${host}|${pathname}|${key}|${value}`;
+        }
+      }
+    }
+    
+    return `${host}|${pathname}`;
+  } catch {
+    return null;
+  }
+}
+
 // Legacy helper names retained for compatibility (if other files import them)
 const clearCache = () => cacheManager.clear();
+
+function loadAllowedUrlSignatures(rawList = []) {
+  const signatures = [];
+  rawList.forEach((entry) => {
+    if (!entry) return;
+    if (entry.includes('|')) {
+      signatures.push(entry);
+    } else {
+      const migrated = normalizeUrlForAllowList(entry);
+      if (migrated) {
+        signatures.push(migrated);
+      }
+    }
+  });
+  return Array.from(new Set(signatures));
+}

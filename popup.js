@@ -28,6 +28,9 @@ const ELEMENT_IDS = {
   aiAnalysisCount: 'aiAnalysisCount',
   blockListDisplay: 'blockListDisplay',
   allowListDisplay: 'allowListDisplay',
+  allowedUrlList: 'allowedUrlList',
+  clearAllowedUrls: 'clearAllowedUrls',
+  allowedUrlMessage: 'allowedUrlMessage',
   recentGoals: 'recentGoals',
   settingsToggle: 'settingsToggle',
   settingsPanel: 'settingsPanel',
@@ -41,7 +44,9 @@ class PopupController {
     this.handleExtensionToggle = this.handleExtensionToggle.bind(this);
     this.onApiInputChanged = this.onApiInputChanged.bind(this);
     this.handleRecentGoalClick = this.handleRecentGoalClick.bind(this);
+    this.handleAllowedUrlClick = this.handleAllowedUrlClick.bind(this);
     this.recentGoals = [];
+    this.allowedUrls = [];
   }
   
   async init() {
@@ -62,11 +67,13 @@ class PopupController {
   }
   
   setupEventListeners() {
-    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, saveBlockList, extensionToggle, settingsToggle, statsToggle, recentGoals } = this.elements;
+    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, saveBlockList, extensionToggle, settingsToggle, statsToggle, recentGoals, allowedUrlList, clearAllowedUrls } = this.elements;
     
     settingsToggle?.addEventListener('click', () => this.toggleSettingsPanel());
     statsToggle?.addEventListener('click', () => this.toggleStatsPanel());
     recentGoals?.addEventListener('click', this.handleRecentGoalClick);
+    allowedUrlList?.addEventListener('click', this.handleAllowedUrlClick);
+    clearAllowedUrls?.addEventListener('click', () => this.clearAllowedUrls());
     
     if (apiKeyInput) {
       toggleKeyVisibility?.addEventListener('click', () => {
@@ -95,7 +102,8 @@ class PopupController {
         'allowList',
         'pagesAnalyzed',
         'extensionEnabled',
-        'recentTasks'
+        'recentTasks',
+        'allowedUrls'
       ]);
       
       const extensionEnabled = data.extensionEnabled !== false;
@@ -123,12 +131,10 @@ class PopupController {
         this.displayAllowList(data.allowList);
       }
       
-      if (Array.isArray(data.recentTasks)) {
-        this.recentGoals = data.recentTasks;
-      } else {
-        this.recentGoals = [];
-      }
+      this.recentGoals = Array.isArray(data.recentTasks) ? data.recentTasks : [];
+      this.allowedUrls = Array.isArray(data.allowedUrls) ? data.allowedUrls : [];
       this.renderRecentGoals();
+      this.renderAllowedUrls();
       
       console.log('Loaded saved data:', {
         hasApiKey: !!data.geminiApiKey,
@@ -521,6 +527,60 @@ class PopupController {
       this.saveTask();
     }
   }
+  
+  renderAllowedUrls() {
+    const container = this.elements.allowedUrlList;
+    if (!container) return;
+    
+    if (!this.allowedUrls.length) {
+      container.innerHTML = '<span class="no-data">No pages allowed yet</span>';
+      return;
+    }
+    
+    container.innerHTML = this.allowedUrls
+      .map(signature => {
+        const label = formatAllowedSignature(signature);
+        return `
+          <span class="tag allowed-page" data-signature="${signature}">
+            ${escapeHtml(label)}
+            <button type="button" class="tag-remove" data-remove="${signature}">×</button>
+          </span>
+        `;
+      })
+      .join('');
+  }
+  
+  handleAllowedUrlClick(event) {
+    const removeBtn = event.target.closest('.tag-remove');
+    if (!removeBtn) return;
+    const signature = removeBtn.dataset.remove;
+    if (!signature) return;
+    this.removeAllowedUrl(signature);
+  }
+  
+  async removeAllowedUrl(signature) {
+    this.allowedUrls = this.allowedUrls.filter(item => item !== signature);
+    await this.syncAllowedUrls('Allowed page removed.');
+  }
+  
+  async clearAllowedUrls() {
+    if (!this.allowedUrls.length) return;
+    this.allowedUrls = [];
+    await this.syncAllowedUrls('Cleared allowed pages.');
+  }
+  
+  async syncAllowedUrls(successMessage) {
+    const messageDiv = this.elements.allowedUrlMessage;
+    try {
+      await chrome.storage.local.set({ allowedUrls: this.allowedUrls });
+      this.renderAllowedUrls();
+      this.showMessage(messageDiv, successMessage, 'success');
+      chrome.runtime.sendMessage({ action: 'allowedUrlsUpdated', allowedUrls: this.allowedUrls }).catch(() => {});
+    } catch (error) {
+      console.error('Failed to update allowed URLs:', error);
+      this.showMessage(messageDiv, 'Unable to update allowed pages.', 'error');
+    }
+  }
 }
 
 function escapeHtml(str) {
@@ -550,6 +610,18 @@ function parseDomainList(text) {
   return Array.from(new Set(
     candidates.filter(candidate => domainRegex.test(candidate))
   ));
+}
+
+function formatAllowedSignature(signature = '') {
+  const parts = signature.split('|');
+  if (parts.length < 2) {
+    return signature;
+  }
+  const [host, path, key, value] = parts;
+  if (key && value) {
+    return `${host}${path} (${key}=${value})`;
+  }
+  return `${host}${path}`;
 }
 
 function setButtonLoading(button, isLoading, loadingLabel) {
