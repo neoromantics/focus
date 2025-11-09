@@ -1,6 +1,6 @@
 // content.js - Content Script with SPA Navigation Detection
 
-console.log('Focus Guardian loaded on:', window.location.href);
+console.log('Focus loaded on:', window.location.href);
 
 const OVERLAY_ID = 'focus-guardian-overlay';
 const GOAL_NOTICE_ID = 'focus-goal-required-notice';
@@ -12,7 +12,8 @@ const FocusGuardianContent = (() => {
     lastUrl: window.location.href,
     checkTimeout: null,
     focusGoalNoticeVisible: false,
-    fadeStylesInjected: false
+    fadeStylesInjected: false,
+    flightStatus: null
   };
   
   function init() {
@@ -103,11 +104,12 @@ const FocusGuardianContent = (() => {
       response?.reason === 'AI did not provide clear answer - allowing access by default'&&
       response.rawAiResponse
     ) {
-      console.warn('Focus Guardian: raw AI response (unclear):', response.rawAiResponse);
+      console.warn('Focus: raw AI response (unclear):', response.rawAiResponse);
     }
       
+      state.flightStatus = response?.flight || null;
       if (response && (response.source === 'disabled'|| response.extensionEnabled === false)) {
-        console.log('Focus Guardian disabled. Skipping monitoring.');
+        console.log('Focus disabled. Skipping monitoring.');
         hideWarningOverlay();
         hideFocusGoalNotice();
         state.warningShown = false;
@@ -151,6 +153,11 @@ const FocusGuardianContent = (() => {
     const isBlocked = data.isBlocked || false;
     const reason = data.reason || 'This site may be distracting';
     const task = data.currentTask || 'your current task';
+    const flight = data.flight || state.flightStatus || { active: false };
+    const turbulence = flight.turbulence || 0;
+    const turbulenceLimit = flight.limit || 5;
+    const remainingAltitude = Math.max(0, turbulenceLimit - turbulence);
+    const flightStatusLabel = !flight.active ? 'Flight idle' : (turbulence >= turbulenceLimit ? 'Emergency landing' : 'Cruising');
     
     overlay.innerHTML = `
       <style>
@@ -227,6 +234,39 @@ const FocusGuardianContent = (() => {
           align-items: center;
           gap: 8px;
           }
+          .fg-flight-status {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          padding: 18px;
+          margin-bottom: 20px;
+          text-align: left;
+          }
+          .fg-flight-status-header {
+          font-size: 13px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: #475467;
+          margin-bottom: 8px;
+          font-weight: 700;
+          }
+          .fg-flight-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          }
+          .fg-flight-label {
+          font-size: 12px;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 4px;
+          }
+          .fg-flight-value {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+          }
           
           .fg-warning-reason {
           font-size: 14px;
@@ -275,6 +315,15 @@ const FocusGuardianContent = (() => {
           background: #0f172a;
           color: #ffffff;
           }
+          .fg-button-ghost {
+          background: #f8fafc;
+          color: #0f172a;
+          border: 1px dashed rgba(15, 23, 42, 0.3);
+          }
+          .fg-button-ghost:hover {
+          background: #0f172a;
+          color: #ffffff;
+          }
           
           .fg-button-link {
           background: transparent;
@@ -307,6 +356,23 @@ const FocusGuardianContent = (() => {
         <div class="fg-warning-task">
            Your goal: ${escapeHtml(task)}
         </div>
+        <div class="fg-flight-status">
+          <div class="fg-flight-status-header">Focus Flight</div>
+          <div class="fg-flight-stats-grid">
+            <div>
+              <div class="fg-flight-label">Status</div>
+              <div class="fg-flight-value">${flightStatusLabel}</div>
+            </div>
+            <div>
+              <div class="fg-flight-label">Altitude</div>
+              <div class="fg-flight-value">${flight.active ? remainingAltitude : '—'}</div>
+            </div>
+            <div>
+              <div class="fg-flight-label">Turbulence</div>
+              <div class="fg-flight-value">${flight.active ? `${turbulence}/${turbulenceLimit}` : '—'}</div>
+            </div>
+          </div>
+        </div>
         <p class="fg-warning-reason">
           ${isBlocked ? 'This site is in your block list': reason}
         </p>
@@ -318,6 +384,10 @@ const FocusGuardianContent = (() => {
         <button class="fg-button fg-button-secondary"id="fg-continue">
           Continue Anyway
         </button>
+        ${flight.active ? `
+        <button class="fg-button fg-button-ghost" id="fg-dispute">
+          Not a distraction
+        </button>` : ''}
         <button class="fg-button fg-button-link"id="fg-allow-site">
           Always allow
         </button>
@@ -348,10 +418,22 @@ const FocusGuardianContent = (() => {
         allowCurrentSite(data?.url || window.location.href);
       });
     }
+    const disputeButton = document.getElementById('fg-dispute');
+    if (disputeButton) {
+      disputeButton.addEventListener('click', () => {
+        disputeCurrentWarning(data?.url || window.location.href);
+      });
+    }
     
     sendBackgroundMessage('warningShown');
     
     console.log('Warning overlay displayed');
+  }
+  
+  function disputeCurrentWarning(targetUrl) {
+    const url = targetUrl || window.location.href;
+    rollbackTurbulence('dispute');
+    hideWarningOverlay();
   }
   
   function hideWarningOverlay() {
@@ -432,8 +514,8 @@ const FocusGuardianContent = (() => {
       <div class="fg-goal-card">
         <div class="fg-goal-icon"></div>
         <h3>Set your focus goal</h3>
-        <p>${data?.reason || 'Focus Guardian needs your goal to analyze sites.'}</p>
-        <button id="fg-open-popup">Open Focus Guardian</button>
+        <p>${data?.reason || 'Focus needs your goal to analyze sites.'}</p>
+        <button id="fg-open-popup">Open Focus</button>
       </div>
     `;
     
@@ -532,10 +614,24 @@ const FocusGuardianContent = (() => {
     sendBackgroundMessage('allowCurrentUrl', { url })
       .then(() => {
         console.log('Site added to allow list:', url);
+        rollbackTurbulence('allow');
         hideWarningOverlay();
       })
       .catch(error => {
         console.error('Failed to add site to allow list:', error);
+      });
+  }
+
+  function rollbackTurbulence(reason) {
+    sendBackgroundMessage('disputeTurbulence', { reason })
+      .then(response => {
+        if (response?.success) {
+          console.log(`Turbulence rollback applied after ${reason || 'dispute'}.`);
+          state.flightStatus = response.flight || state.flightStatus;
+        }
+      })
+      .catch(error => {
+        console.warn('Unable to rollback turbulence:', error);
       });
   }
   

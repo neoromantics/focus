@@ -13,18 +13,41 @@
     </header>
 
     <main>
-      <section class="config-section">
-        <div class="config-card toggle-card">
-          <div class="toggle-row">
-            <div class="toggle-text">
-              <p class="toggle-title">Focus Now</p>
+      <!-- Focus Flight Section -->
+      <section class="config-section flight-section">
+        <h2>Focus Flight</h2>
+        <div class="config-card flight-card">
+          <div class="flight-status-row">
+            <div>
+              <p class="flight-status-label">Current status</p>
+              <p id="flightStatusLabel" class="flight-status-value">Idle</p>
             </div>
-            <label class="toggle-switch">
-              <input type="checkbox" id="extensionToggle">
-              <span class="toggle-slider"></span>
-            </label>
+            <div class="flight-controls">
+              <button id="startFlight" class="btn btn-primary">Start Focus</button>
+              <button id="endFlight" class="btn btn-secondary" disabled>End Flight</button>
+            </div>
           </div>
-          <div id="toggleMessage" class="message"></div>
+          <div class="flight-stat-grid">
+            <div>
+              <span class="label">Duration</span>
+              <span class="value" id="flightDuration">0:00</span>
+            </div>
+            <div>
+              <span class="label">Turbulence</span>
+              <span class="value" id="flightTurbulence">0/5</span>
+            </div>
+          </div>
+          <div id="flightMessage" class="message"></div>
+        </div>
+
+        <div class="config-card flight-history-card">
+          <div class="flight-history-header">
+            <h3>Recent Flights</h3>
+            <span id="flightStreak" class="flight-streak"></span>
+          </div>
+          <div id="flightHistoryList" class="flight-history-list">
+            <span class="no-data">No flights yet</span>
+          </div>
         </div>
       </section>
 
@@ -82,7 +105,6 @@
             
             <div class="button-group">
               <button id="saveApiKey" class="btn btn-primary">Save API Key</button>
-              <button id="testApiKey" class="btn btn-secondary" disabled>Test Connection</button>
             </div>
             
             <div id="apiMessage" class="message"></div>

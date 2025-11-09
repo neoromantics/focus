@@ -3,7 +3,6 @@
 const ELEMENT_IDS = {
   apiKeyInput: 'apiKeyInput',
   toggleKeyVisibility: 'toggleKeyVisibility',
-  testApiKey: 'testApiKey',
   saveApiKey: 'saveApiKey',
   taskInput: 'taskInput',
   saveTask: 'saveTask',
@@ -11,9 +10,7 @@ const ELEMENT_IDS = {
   saveBlockList: 'saveBlockList',
   allowListInput: 'allowListInput',
   saveAllowList: 'saveAllowList',
-  extensionToggle: 'extensionToggle',
   extensionStatus: 'extensionStatus',
-  toggleMessage: 'toggleMessage',
   apiMessage: 'apiMessage',
   taskMessage: 'taskMessage',
   blockListMessage: 'blockListMessage',
@@ -35,18 +32,28 @@ const ELEMENT_IDS = {
   settingsToggle: 'settingsToggle',
   settingsPanel: 'settingsPanel',
   statsToggle: 'statsToggle',
-  statsPanel: 'statsPanel'
+  statsPanel: 'statsPanel',
+  startFlight: 'startFlight',
+  endFlight: 'endFlight',
+  flightStatusLabel: 'flightStatusLabel',
+  flightDuration: 'flightDuration',
+  flightTurbulence: 'flightTurbulence',
+  flightMessage: 'flightMessage',
+  flightHistoryList: 'flightHistoryList',
+  flightStreak: 'flightStreak'
 };
 
 class PopupController {
   constructor() {
     this.elements = {};
-    this.handleExtensionToggle = this.handleExtensionToggle.bind(this);
-    this.onApiInputChanged = this.onApiInputChanged.bind(this);
     this.handleRecentGoalClick = this.handleRecentGoalClick.bind(this);
     this.handleAllowedUrlClick = this.handleAllowedUrlClick.bind(this);
     this.recentGoals = [];
     this.allowedUrls = [];
+    this.flightData = null;
+    this.flightHistory = [];
+    this.flightTimer = null;
+    this.extensionEnabled = true;
   }
   
   async init() {
@@ -56,7 +63,8 @@ class PopupController {
     await Promise.all([
       this.loadSavedData(),
       this.displayCurrentTab(),
-      this.updateStatistics()
+      this.updateStatistics(),
+      this.refreshFlightInfo()
     ]);
   }
   
@@ -67,7 +75,7 @@ class PopupController {
   }
   
   setupEventListeners() {
-    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, extensionToggle, settingsToggle, statsToggle, recentGoals, allowedUrlList, clearAllowedUrls } = this.elements;
+    const { apiKeyInput, toggleKeyVisibility, saveApiKey, saveTask, settingsToggle, statsToggle, recentGoals, allowedUrlList, clearAllowedUrls, startFlight, endFlight } = this.elements;
     
     settingsToggle?.addEventListener('click', () => this.toggleSettingsPanel());
     statsToggle?.addEventListener('click', () => this.toggleStatsPanel());
@@ -82,15 +90,14 @@ class PopupController {
         toggleKeyVisibility.textContent = isPassword ? 'Hide' : 'Show';
       });
       
-      apiKeyInput.addEventListener('input', this.onApiInputChanged);
       saveApiKey?.addEventListener('click', () => this.saveApiKey());
-      testApiKey?.addEventListener('click', () => this.testApiConnection());
     }
     
     saveTask?.addEventListener('click', () => this.saveTask());
     this.elements.saveBlockList?.addEventListener('click', () => this.saveDomainList('block'));
     this.elements.saveAllowList?.addEventListener('click', () => this.saveDomainList('allow'));
-    extensionToggle?.addEventListener('change', this.handleExtensionToggle);
+    startFlight?.addEventListener('click', () => this.startFlight());
+    endFlight?.addEventListener('click', () => this.endFlight());
   }
   
   async loadSavedData() {
@@ -112,9 +119,6 @@ class PopupController {
       if (data.geminiApiKey && this.elements.apiKeyInput) {
         this.elements.apiKeyInput.value = data.geminiApiKey;
         this.updateApiStatus(true);
-        if (this.elements.testApiKey) {
-          this.elements.testApiKey.disabled = false;
-        }
       }
       
       if (data.currentTask && this.elements.taskInput) {
@@ -136,10 +140,6 @@ class PopupController {
       this.renderRecentGoals();
       this.renderAllowedUrls();
       
-      if (extensionEnabled && (!data.geminiApiKey || !data.currentTask)) {
-        showConfigReminder(data);
-      }
-      
       console.log('Loaded saved data:', {
         hasApiKey: !!data.geminiApiKey,
         hasTask: !!data.currentTask,
@@ -148,6 +148,244 @@ class PopupController {
       });
     } catch (error) {
       console.error('Error loading saved data:', error);
+    }
+  }
+  
+  async refreshFlightInfo() {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getFlightStatus' });
+      if (!response?.success) return;
+      this.applyFlightState(response);
+      const { extensionEnabled } = await chrome.storage.local.get('extensionEnabled');
+      const isEnabled = extensionEnabled !== false;
+      this.updateExtensionStateUI(isEnabled);
+    } catch (error) {
+      console.error('Error fetching flight info:', error);
+    }
+  }
+  
+  async startFlight() {
+    const startBtn = this.elements.startFlight;
+    const messageDiv = this.elements.flightMessage;
+    setButtonLoading(startBtn, true, 'Starting...');
+    try {
+      const settings = await chrome.storage.local.get(['geminiApiKey', 'currentTask']);
+      if (!hasRequiredConfig(settings)) {
+        showConfigReminder(settings, 'flightMessage');
+        throw new Error('Add API key and focus goal before starting a flight.');
+      }
+      await this.ensureExtensionEnabled();
+      const response = await chrome.runtime.sendMessage({ action: 'startFlight' });
+      if (!response?.success) {
+        throw new Error(response?.error || 'Unable to start flight.');
+      }
+      this.applyFlightState(response);
+      this.showMessage(messageDiv, 'Flight started. Stay focused!', 'success');
+      await this.refreshFlightInfo();
+    } catch (error) {
+      console.error('Failed to start flight:', error);
+      this.showMessage(messageDiv, error.message || 'Unable to start flight.', 'error');
+    } finally {
+      setButtonLoading(startBtn, false);
+    }
+  }
+  
+  async endFlight() {
+    const endBtn = this.elements.endFlight;
+    const messageDiv = this.elements.flightMessage;
+    setButtonLoading(endBtn, true, 'Landing...');
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'endFlight' });
+      if (response?.tooShort) {
+        this.showMessage(messageDiv, 'Flights shorter than 3 minutes are not recorded.', 'warning');
+      } else if (response?.success) {
+        const outcome = response.record?.outcome || 'completed';
+        const outcomeLabel = this.getOutcomeLabel(outcome);
+        const messageType = outcome === 'fail' ? 'error' : outcome === 'delayed' ? 'warning' : 'success';
+        this.showMessage(messageDiv, `Flight ${outcomeLabel}.`, messageType);
+      } else {
+        throw new Error(response?.error || 'Unable to end flight.');
+      }
+      this.applyFlightState(response);
+      await this.refreshFlightInfo();
+      try {
+        await this.setExtensionEnabled(false);
+      } catch (error) {
+        console.warn('Unable to disable focus after landing:', error);
+      }
+    } catch (error) {
+      console.error('Failed to end flight:', error);
+      this.showMessage(messageDiv, error.message || 'Unable to end flight.', 'error');
+    } finally {
+      setButtonLoading(endBtn, false);
+    }
+  }
+
+  applyFlightState(response = {}) {
+    const normalizedFlight = normalizeFlightData(response.flight);
+    this.flightData = normalizedFlight;
+    if (Array.isArray(response.history)) {
+      this.flightHistory = response.history;
+    } else if (!this.flightHistory) {
+      this.flightHistory = [];
+    }
+    this.updateFlightUI();
+  }
+
+  updateFlightUI() {
+    const { flightStatusLabel, flightDuration, flightTurbulence, startFlight, endFlight, flightStreak } = this.elements;
+    const activeFlight = this.flightData?.active;
+    if (flightStatusLabel) {
+      if (activeFlight) {
+        flightStatusLabel.textContent = 'In flight';
+      } else if (this.flightHistory?.length) {
+        flightStatusLabel.textContent = `Last: ${this.getOutcomeLabel(this.flightHistory[0].outcome || 'completed')}`;
+      } else {
+        flightStatusLabel.textContent = 'Idle';
+      }
+    }
+    if (flightTurbulence) {
+      const limit = this.flightData?.limit || 5;
+      if (activeFlight) {
+        flightTurbulence.textContent = `${this.flightData?.turbulence || 0}/${limit}`;
+      } else if (this.flightHistory?.length) {
+        flightTurbulence.textContent = `${this.flightHistory[0].turbulence || 0}/${limit}`;
+      } else {
+        flightTurbulence.textContent = '0/5';
+      }
+    }
+    if (startFlight) {
+      startFlight.disabled = !!activeFlight;
+    }
+    if (endFlight) {
+      endFlight.disabled = !activeFlight;
+    }
+    if (flightStreak) {
+      const streak = this.computeFlightStreak();
+      flightStreak.textContent = streak > 0 ? `${streak} perfect ${streak === 1 ? 'flight' : 'flights'}` : '';
+    }
+    this.updateFlightDurationDisplay(flightDuration);
+    this.updateFlightHistoryList();
+  }
+
+  updateFlightDurationDisplay(durationEl) {
+    const el = durationEl || this.elements.flightDuration;
+    if (!el) return;
+    if (this.flightData?.active && this.flightData.startedAt) {
+      el.textContent = formatDuration(Date.now() - this.flightData.startedAt);
+      this.startFlightTimer();
+    } else {
+      this.stopFlightTimer();
+      if (this.flightHistory?.length) {
+        el.textContent = formatDuration(this.flightHistory[0].durationMs || 0);
+      } else {
+        el.textContent = '0:00';
+      }
+    }
+  }
+
+  startFlightTimer() {
+    if (this.flightTimer) return;
+    this.flightTimer = setInterval(() => {
+      if (!this.flightData?.active || !this.flightData.startedAt) {
+        this.stopFlightTimer();
+        return;
+      }
+      const el = this.elements.flightDuration;
+      if (el) {
+        el.textContent = formatDuration(Date.now() - this.flightData.startedAt);
+      }
+    }, 1000);
+  }
+
+  stopFlightTimer() {
+    if (this.flightTimer) {
+      clearInterval(this.flightTimer);
+      this.flightTimer = null;
+    }
+  }
+
+  updateFlightHistoryList() {
+    const container = this.elements.flightHistoryList;
+    if (!container) return;
+    if (!this.flightHistory || this.flightHistory.length === 0) {
+      container.innerHTML = '<span class="no-data">No flights yet</span>';
+      return;
+    }
+    container.innerHTML = this.flightHistory
+      .map((record) => this.renderFlightHistoryItem(record))
+      .join('');
+  }
+
+  renderFlightHistoryItem(record = {}) {
+    const goal = record.goalSnapshot || 'Focus flight';
+    const duration = formatDuration(record.durationMs || 0);
+    const outcome = record.outcome || 'completed';
+    const drops = record.turbulence || 0;
+    const badgeClass = `flight-badge ${outcome}`;
+    const badgeLabel = this.getOutcomeLabel(outcome);
+    const timestamp = record.completedAt ? new Date(record.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const metaPieces = [`${duration}`, `${drops} drops`];
+    if (timestamp) metaPieces.push(timestamp);
+    return `
+      <div class="flight-history-item">
+        <div class="flight-history-details">
+          <span class="flight-history-title">${escapeHtml(goal)}</span>
+          <span class="flight-history-meta">${escapeHtml(metaPieces.join(' · '))}</span>
+        </div>
+        <span class="${badgeClass}">${escapeHtml(badgeLabel)}</span>
+      </div>
+    `;
+  }
+
+  computeFlightStreak() {
+    let streak = 0;
+    for (const record of this.flightHistory || []) {
+      if (record.outcome === 'perfect') {
+        streak += 1;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  getOutcomeLabel(outcome) {
+    switch (outcome) {
+      case 'perfect':
+        return 'Perfect landing';
+      case 'delayed':
+        return 'Delayed arrival';
+      case 'fail':
+        return 'Emergency landing';
+      default:
+        return 'Completed';
+    }
+  }
+
+  async ensureExtensionEnabled() {
+    if (this.extensionEnabled) return;
+    await this.setExtensionEnabled(true);
+  }
+
+  async setExtensionEnabled(enabled) {
+    if (this.extensionEnabled === enabled) {
+      this.updateExtensionStateUI(enabled);
+      return;
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'setExtensionEnabled',
+        enabled
+      });
+      if (!response?.success) {
+        throw new Error(response?.error || 'Unable to update focus state');
+      }
+      await chrome.storage.local.set({ extensionEnabled: enabled });
+      this.updateExtensionStateUI(enabled);
+    } catch (error) {
+      console.error('Failed to update extension state:', error);
+      throw error;
     }
   }
   
@@ -166,67 +404,42 @@ class PopupController {
     
     try {
       await chrome.storage.local.set({ geminiApiKey: apiKey });
-      this.showMessage(messageDiv, 'API Key saved successfully!', 'success');
-      this.updateApiStatus(true);
-      if (this.elements.testApiKey) {
-        this.elements.testApiKey.disabled = false;
-      }
-      
       console.log('API Key saved (length:', apiKey.length, ')');
       
       chrome.runtime.sendMessage({ action: 'apiKeyUpdated'}).catch(err => {
         console.log('Could not notify background:', err);
       });
+      await this.verifyApiKey(apiKey);
     } catch (error) {
       console.error('Error saving API key:', error);
-      this.showMessage(messageDiv, 'Failed to save API key', 'error');
+      this.updateApiStatus(false);
+      this.showMessage(messageDiv, error.message ? `Failed to verify API key: ${error.message}` : 'Failed to save API key', 'error');
     }
   }
   
-  async testApiConnection() {
-    if (!this.elements.testApiKey) return;
+  async verifyApiKey(apiKey) {
     const messageDiv = this.elements.apiMessage;
-    
-    setButtonLoading(this.elements.testApiKey, true, 'Testing...');
-    
-    try {
-      const data = await chrome.storage.local.get('geminiApiKey');
-      const apiKey = data.geminiApiKey;
-      
-      if (!apiKey) {
-        throw new Error('No API key found');
+    this.showMessage(messageDiv, 'Verifying API key...', 'info');
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: 'Hello! Just testing the connection. Please respond with "OK".' }]
+          }]
+        })
       }
-      
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            contents: [{
-              parts: [{ text: 'Hello! Just testing the connection. Please respond with "OK".'}]
-            }]
-          })
-        }
-      );
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'API request failed');
-      }
-      
-      const result = await response.json();
-      console.log('API Test successful:', result);
-      
-      this.showMessage(messageDiv, 'Connection successful! API key is working.', 'success');
-      this.updateApiStatus(true, 'Connected ');
-    } catch (error) {
-      console.error('API test failed:', error);
-      this.showMessage(messageDiv, ` Connection failed: ${error.message}`, 'error');
-      this.updateApiStatus(false);
-    } finally {
-      setButtonLoading(this.elements.testApiKey, false);
+    );
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'API request failed');
     }
+    const result = await response.json();
+    console.log('API verification successful:', result);
+    this.updateApiStatus(true, 'Connected');
+    this.showMessage(messageDiv, 'API key verified! Connection successful.', 'success');
   }
   
   async saveTask() {
@@ -388,56 +601,11 @@ class PopupController {
     }
   }
   
-  async handleExtensionToggle(event) {
-    const toggle = event.target;
-    const enabled = toggle.checked;
-    const messageBox = this.elements.toggleMessage;
-    toggle.disabled = true;
-    
-    if (messageBox) {
-      messageBox.style.display = 'none';
-      messageBox.textContent = '';
-    }
-    
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: 'setExtensionEnabled',
-        enabled
-      });
-      
-      if (!response?.success) {
-        throw new Error(response?.error || 'Failed to update extension state');
-      }
-      
-      await chrome.storage.local.set({ extensionEnabled: enabled });
-      this.updateExtensionStateUI(enabled);
-      if (enabled) {
-        const data = await chrome.storage.local.get(['geminiApiKey', 'currentTask']);
-        if (!data.geminiApiKey || !data.currentTask) {
-          showConfigReminder(data);
-        }
-      }
-    } catch (error) {
-      console.error('Error updating extension status:', error);
-      this.updateExtensionStateUI(!enabled);
-      if (messageBox) {
-        this.showMessage(messageBox, 'Unable to change status. Please try again.', 'error');
-      }
-    } finally {
-      toggle.disabled = false;
-    }
-  }
-  
   updateExtensionStateUI(isEnabled) {
-    const { extensionToggle, extensionStatus } = this.elements;
-    
-    if (extensionToggle) {
-      extensionToggle.checked = isEnabled;
-    }
-    
-    
+    this.extensionEnabled = isEnabled;
+    const { extensionStatus } = this.elements;
     if (extensionStatus) {
-      extensionStatus.textContent = isEnabled ? 'Active ': 'Paused ';
+      extensionStatus.textContent = isEnabled ? 'Active' : 'Paused';
       extensionStatus.classList.toggle('active', isEnabled);
       extensionStatus.classList.toggle('inactive', !isEnabled);
     }
@@ -456,12 +624,6 @@ class PopupController {
     }
   }
   
-  onApiInputChanged(event) {
-    if (!this.elements.testApiKey) return;
-    const hasKey = event.target.value.trim().length > 0;
-    this.elements.testApiKey.disabled = !hasKey;
-  }
-
   toggleSettingsPanel() {
     const panel = this.elements.settingsPanel;
     const button = this.elements.settingsToggle;
@@ -626,19 +788,46 @@ function formatAllowedSignature(signature = '') {
   return `${host}${path}`;
 }
 
-function showConfigReminder(data) {
+function normalizeFlightData(flight) {
+  if (!flight) return null;
+  const limit = flight.limit || 5;
+  const status = flight.status || (flight.active ? 'inflight' : 'idle');
+  const active = flight.active ?? status === 'inflight';
+  return {
+    ...flight,
+    limit,
+    status,
+    active
+  };
+}
+
+function formatDuration(ms = 0) {
+  if (!ms || ms < 0) {
+    return '0:00';
+  }
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function showConfigReminder(data, targetElementId = 'flightMessage') {
   const missing = [];
   if (!data.geminiApiKey) missing.push('API key');
   if (!data.currentTask) missing.push('focus goal');
   if (!missing.length) return;
   
   const message = `Focus is on, but ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} missing. Please update Settings.`;
-  const toggleMsg = document.getElementById('toggleMessage');
-  if (toggleMsg) {
-    toggleMsg.className = 'message message-warning';
-    toggleMsg.style.display = 'block';
-    toggleMsg.textContent = message;
+  const target = document.getElementById(targetElementId);
+  if (target) {
+    target.className = 'message message-warning';
+    target.style.display = 'block';
+    target.textContent = message;
   }
+}
+
+function hasRequiredConfig(data = {}) {
+  return !!(data.geminiApiKey && data.currentTask);
 }
 
 function setButtonLoading(button, isLoading, loadingLabel) {

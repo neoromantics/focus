@@ -1,4 +1,4 @@
-// Shared constants for Focus Guardian background logic
+// Shared constants for Focus background logic
 (function(global) {
   const STORAGE_KEYS = [
     'geminiApiKey',
@@ -12,7 +12,9 @@
     'warningsShown',
     'timesWentBack',
     'timesContinued',
-    'aiAnalysisCount'
+    'aiAnalysisCount',
+    'currentFlight',
+    'flightHistory'
   ];
 
   const STAT_KEYS = [
@@ -41,6 +43,11 @@
       CLEAN_INTERVAL_MS: 3600000
     }),
     STATS_SAVE_INTERVAL_MS: 300000, // 5 minutes
+    FLIGHT: Object.freeze({
+      MIN_DURATION_MS: 180000, // 3 minutes
+      TURBULENCE_LIMIT: 5,
+      HISTORY_LIMIT: 20
+    }),
     LABELS: Object.freeze({
       FALLBACK_TASK: 'Stay focused',
       MISSING_TASK: 'Please set a focus goal'

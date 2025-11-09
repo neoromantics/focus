@@ -6,7 +6,7 @@ importScripts(
   'background/responses.js'
 );
 
-console.log('Focus Guardian Background Service Worker Started (Phase 4 - AI Enabled)!');
+console.log('Focus Background Service Worker Started (Phase 4 - AI Enabled)!');
 
 const { FG_CONSTANTS, FG_HELPERS, FG_RESPONSES } = self;
 const {
@@ -17,7 +17,8 @@ const {
   CACHE,
   STATS_SAVE_INTERVAL_MS,
   LABELS,
-  PRODUCTIVITY_ALLOWLIST
+  PRODUCTIVITY_ALLOWLIST,
+  FLIGHT
 } = FG_CONSTANTS;
 
 const {
@@ -47,7 +48,9 @@ let config = {
   allowedUrls: [],
   enabled: true,
   cache: {}, // URL cache for AI decisions
-  stats: { ...defaultStats }
+  stats: { ...defaultStats },
+  flight: null,
+  flightHistory: []
 };
 
 const statsManager = createStatsManager(storage, STAT_KEYS, () => config.stats);
@@ -60,6 +63,138 @@ const cacheManager = createCacheManager(
     config.cache = newCache;
   }
 );
+
+function isFlightActive() {
+  return !!(config.flight && config.flight.status === 'inflight');
+}
+
+function getFlightSnapshot() {
+  const flight = config.flight;
+  if (!flight) {
+    return {
+      active: false,
+      turbulence: 0,
+      limit: FLIGHT.TURBULENCE_LIMIT
+    };
+  }
+  return {
+    active: flight.status === 'inflight',
+    status: flight.status,
+    turbulence: flight.turbulence || 0,
+    limit: FLIGHT.TURBULENCE_LIMIT,
+    startedAt: flight.startedAt,
+    goal: flight.goalSnapshot,
+    durationMs: Date.now() - (flight.startedAt || Date.now()),
+    id: flight.id
+  };
+}
+
+function persistFlightState() {
+  return storage.set({
+    currentFlight: config.flight,
+    flightHistory: config.flightHistory
+  });
+}
+
+async function startFlightSession() {
+  if (config.flight && config.flight.status === 'inflight') {
+    return { success: false, error: 'flight-in-progress', flight: getFlightSnapshot() };
+  }
+  const now = Date.now();
+  config.flight = {
+    id: `flight-${now}`,
+    startedAt: now,
+    goalSnapshot: config.currentTask,
+    turbulence: 0,
+    status: 'inflight',
+    events: []
+  };
+  await persistFlightState();
+  return { success: true, flight: getFlightSnapshot() };
+}
+
+async function endFlightSession({ forcedOutcome = null, skipDurationCheck = false } = {}) {
+  if (!config.flight) {
+    return { success: false, error: 'no-flight' };
+  }
+  const now = Date.now();
+  const durationMs = now - (config.flight.startedAt || now);
+  if (!skipDurationCheck && !forcedOutcome && durationMs < FLIGHT.MIN_DURATION_MS) {
+    // Too short, just clear current flight without recording history
+    config.flight = null;
+    await persistFlightState();
+    return { success: false, tooShort: true, durationMs };
+  }
+
+  const turbulence = config.flight.turbulence || 0;
+  const outcome = forcedOutcome || determineFlightOutcome(turbulence);
+  const record = {
+    id: config.flight.id,
+    goalSnapshot: config.flight.goalSnapshot,
+    startedAt: config.flight.startedAt,
+    completedAt: now,
+    durationMs,
+    turbulence,
+    outcome
+  };
+
+  config.flightHistory = [record, ...config.flightHistory].slice(0, FLIGHT.HISTORY_LIMIT);
+  config.flight = null;
+  await persistFlightState();
+  return { success: true, record, flightHistory: config.flightHistory };
+}
+
+async function registerTurbulenceEvent({ url } = {}) {
+  if (!config.flight || config.flight.status !== 'inflight') {
+    return { applied: false };
+  }
+  config.flight.turbulence = (config.flight.turbulence || 0) + 1;
+  config.flight.events = config.flight.events || [];
+  config.flight.events.push({ type: 'turbulence', url, timestamp: Date.now() });
+  await persistFlightState();
+
+  if (config.flight.turbulence >= FLIGHT.TURBULENCE_LIMIT) {
+    const result = await endFlightSession({ forcedOutcome: 'fail', skipDurationCheck: true });
+    return { applied: true, forcedLanding: true, result };
+  }
+  return { applied: true };
+}
+
+async function rollbackTurbulence() {
+  if (!config.flight || config.flight.status !== 'inflight') {
+    return { success: false, error: 'no-flight' };
+  }
+  if (!config.flight.turbulence) {
+    return { success: false, error: 'no-turbulence' };
+  }
+  config.flight.turbulence = Math.max(0, (config.flight.turbulence || 0) - 1);
+  if (Array.isArray(config.flight.events)) {
+    // Remove the last turbulence event if present
+    let idx = config.flight.events.length - 1;
+    while (idx >= 0) {
+      if (config.flight.events[idx].type === 'turbulence') {
+        config.flight.events.splice(idx, 1);
+        break;
+      }
+      idx--;
+    }
+  }
+  await persistFlightState();
+  return { success: true, flight: getFlightSnapshot() };
+}
+
+function determineFlightOutcome(turbulenceCount = 0) {
+  if (turbulenceCount <= 0) return 'perfect';
+  if (turbulenceCount < FLIGHT.TURBULENCE_LIMIT) return 'delayed';
+  return 'fail';
+}
+
+function respondWithFlight(sendResponse, payload = {}) {
+  sendResponse({
+    ...payload,
+    flight: getFlightSnapshot()
+  });
+}
 
 async function updateAllowList(list = []) {
   config.allowList = sanitizeDomainList(list);
@@ -116,6 +251,8 @@ async function loadConfiguration() {
     config.allowList = data.allowList || [];
     config.allowedUrls = loadAllowedUrlSignatures(data.allowedUrls || []);
     config.enabled = data.extensionEnabled !== false;
+    config.flight = data.currentFlight || null;
+    config.flightHistory = Array.isArray(data.flightHistory) ? data.flightHistory : [];
     cacheManager.loadFrom(data.urlCache || {});
     statsManager.initFrom(data);
     
@@ -127,7 +264,9 @@ async function loadConfiguration() {
       allowListSize: config.allowList.length,
       cacheSize: Object.keys(config.cache).length,
       enabled: config.enabled,
-      stats: config.stats
+      stats: config.stats,
+      hasFlight: !!config.flight,
+      flightHistoryCount: config.flightHistory.length
     });
     
   } catch (error) {
@@ -184,9 +323,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true; // Keep channel open for async response
       
     case 'warningShown':
-      handleWarningShown(request.url);
-      sendResponse({ success: true });
-      break;
+      handleWarningShown(request.url).then(() => {
+        sendResponse({ success: true, flight: getFlightSnapshot() });
+      }).catch(error => {
+        console.error('Failed to handle warning event:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+      return true;
       
     case 'allowCurrentUrl':
       handleAllowCurrentUrl(request.url).then(result => {
@@ -213,7 +356,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log(` Extension ${config.enabled ? 'enabled': 'disabled'} via popup`);
       sendResponse({ success: true, enabled: config.enabled });
       break;
-      
+
+    case 'startFlight':
+      startFlightSession().then(result => {
+        sendResponse({ ...result, flight: getFlightSnapshot(), history: config.flightHistory });
+      }).catch(error => {
+        console.error('Failed to start flight:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+      return true;
+
+    case 'endFlight':
+      endFlightSession({ forcedOutcome: request.forcedOutcome, skipDurationCheck: request.skipDurationCheck }).then(result => {
+        sendResponse({ ...result, flight: getFlightSnapshot(), history: config.flightHistory });
+      }).catch(error => {
+        console.error('Failed to end flight:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+      return true;
+
+    case 'disputeTurbulence':
+      rollbackTurbulence().then(result => {
+        sendResponse({ ...result, flight: getFlightSnapshot() });
+      }).catch(error => {
+        console.error('Failed to rollback turbulence:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+      return true;
+
+    case 'getFlightStatus':
+      sendResponse({ success: true, flight: getFlightSnapshot(), history: config.flightHistory });
+      break;
+
     case 'openPopup': {
       const popupUrl = chrome.runtime.getURL('popup.html');
       chrome.windows.create({
@@ -227,7 +401,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           console.error('Failed to open popup window:', chrome.runtime.lastError.message);
           sendResponse({ success: false, error: chrome.runtime.lastError.message });
         } else {
-          console.log('Focus Guardian popup opened:', createdWindow?.id);
+          console.log('Focus popup opened:', createdWindow?.id);
           sendResponse({ success: true });
         }
       });
@@ -252,14 +426,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Handle URL checking with AI analysis (Phase 4)
 async function handleUrlCheck(url, html, sendResponse) {
   try {
-    if (!config.enabled) {
-      sendResponse(responseFactory.disabled());
+    if (!config.enabled || !isFlightActive()) {
+      respondWithFlight(sendResponse, buildResponse({
+        reason: 'Start a focus flight to enable focus mode',
+        source: 'no-flight',
+        extras: { extensionEnabled: false }
+      }));
       return;
     }
     
     const hostname = getHostname(url);
     if (!hostname) {
-      sendResponse(responseFactory.invalidUrl());
+      respondWithFlight(sendResponse, responseFactory.invalidUrl());
       return;
     }
     
@@ -271,14 +449,14 @@ async function handleUrlCheck(url, html, sendResponse) {
     // Step 1: Check if in strict block list (highest priority)
     if (isStrictlyBlocked(hostname)) {
       console.log('URL is in block list:', hostname);
-      sendResponse(responseFactory.strictBlock());
+      respondWithFlight(sendResponse, responseFactory.strictBlock());
       return;
     }
     
     // Step 1.5: Allow list checks
     const allowMatch = getAllowDecision(hostname, url);
     if (allowMatch) {
-      sendResponse(buildResponse({
+      respondWithFlight(sendResponse, buildResponse({
         reason: allowMatch.reason,
         source: allowMatch.source,
         extras: { isAllowed: true }
@@ -290,19 +468,20 @@ async function handleUrlCheck(url, html, sendResponse) {
     const cachedDecision = cacheManager.get(url);
     if (cachedDecision) {
       console.log('Using cached AI decision for:', hostname);
-      sendResponse({
+      const cachedDecisionPayload = {
         ...cachedDecision,
         cached: true,
         currentTask: config.currentTask,
         source: 'cache'
-      });
+      };
+      respondWithFlight(sendResponse, cachedDecisionPayload);
       return;
     }
     
     // Step 3: Check if we should skip AI analysis
     if (shouldSkipAIAnalysis(url)) {
       console.log('Skipping AI analysis for whitelisted site:', hostname);
-      sendResponse(responseFactory.productivityAllow());
+      respondWithFlight(sendResponse, responseFactory.productivityAllow());
       return;
     }
     
@@ -312,20 +491,20 @@ async function handleUrlCheck(url, html, sendResponse) {
     if (!config.apiKey) {
       console.log('No API key configured - allowing access');
       console.log('API key in config:', config.apiKey);
-      sendResponse(responseFactory.noApiKey());
+      respondWithFlight(sendResponse, responseFactory.noApiKey());
       return;
     }
     
     if (!config.currentTask) {
       console.log('No focus goal set - allowing access');
-      sendResponse(responseFactory.noTask());
+      respondWithFlight(sendResponse, responseFactory.noTask());
       return;
     }
     
     // Step 5: Check if HTML is provided
     if (!html || html.length === 0) {
       console.log('No HTML provided - allowing access');
-      sendResponse(responseFactory.noHtml());
+      respondWithFlight(sendResponse, responseFactory.noHtml());
       return;
     }
     
@@ -346,7 +525,7 @@ async function handleUrlCheck(url, html, sendResponse) {
       
       console.log('AI Analysis complete:', aiResult.shouldWarn ? 'DISTRACTION': 'ON_TRACK');
       
-      sendResponse({
+      respondWithFlight(sendResponse, {
         ...aiResult,
         currentTask: config.currentTask,
         cached: false,
@@ -355,12 +534,12 @@ async function handleUrlCheck(url, html, sendResponse) {
       
     } catch (aiError) {
       console.error('AI Analysis failed:', aiError);
-      sendResponse(responseFactory.aiError(aiError.message));
+      respondWithFlight(sendResponse, responseFactory.aiError(aiError.message));
     }
     
   } catch (error) {
     console.error('Error checking URL:', error);
-    sendResponse(buildResponse({
+    respondWithFlight(sendResponse, buildResponse({
       reason: 'Error occurred during check',
       source: 'error',
       extras: { error: error.message }
@@ -584,7 +763,14 @@ function shouldSkipAIAnalysis(url) {
 // Event handlers
 async function handleWarningShown(url) {
   await statsManager.increment('warningsShown');
+  const turbulenceResult = await registerTurbulenceEvent({ url });
   console.log(` Warning shown (total: ${config.stats.warningsShown})`);
+  if (turbulenceResult?.applied) {
+    console.log(` ✈️ Turbulence recorded. Count: ${config.flight?.turbulence || 0}/${FLIGHT.TURBULENCE_LIMIT}`);
+  }
+  if (turbulenceResult?.forcedLanding) {
+    console.log(' ⚠️ Flight forced to land due to excessive distractions.');
+  }
 }
 
 async function handleUserWentBack(url) {
@@ -644,7 +830,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
               shouldWarn: true,
               isBlocked: true,
               reason: 'This site is in your block list',
-              currentTask: config.currentTask || 'Stay focused'
+              currentTask: config.currentTask || 'Stay focused',
+              flight: getFlightSnapshot()
             }
           });
         } catch (error) {

@@ -23,7 +23,7 @@
 
     const responseFactory = {
       disabled: () => buildResponse({
-        reason: 'Focus Guardian is turned off',
+        reason: 'Focus is turned off',
         source: 'disabled',
         extras: { extensionEnabled: false }
       }),

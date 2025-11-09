@@ -129,6 +129,140 @@ section h2 {
   font-family: 'Optima', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
 }
 
+.flight-section .flight-card {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #f8fafc;
+}
+
+.flight-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.flight-status-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.flight-status-value {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.flight-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.flight-controls .btn {
+  min-width: 120px;
+}
+
+.flight-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.flight-stat-grid .label {
+  font-size: 13px;
+  color: rgba(248, 250, 252, 0.8);
+}
+
+.flight-stat-grid .value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.flight-history-card {
+  margin-top: 14px;
+}
+
+.flight-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.flight-history-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.flight-streak {
+  font-size: 12px;
+  color: #475467;
+}
+
+.flight-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.flight-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.flight-history-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flight-history-title {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.flight-history-meta {
+  font-size: 12px;
+  color: #475467;
+}
+
+.flight-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.flight-badge.perfect {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.flight-badge.delayed {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.flight-badge.fail {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .focus-goal-section .config-card {
   display: flex;
   flex-direction: column;
