@@ -3,25 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Focus Guardian</title>
+  <title>Focus</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Focus Guardian</h1>
-      <p class="subtitle">AI-Powered Focus Assistant</p>
+      <h1>Focus</h1>
     </header>
 
     <main>
-      <!-- Extension Control Section -->
       <section class="config-section">
-        <h2>⚡ Extension Control</h2>
         <div class="config-card toggle-card">
           <div class="toggle-row">
             <div class="toggle-text">
-              <p class="toggle-title">Focus Guardian Protection</p>
-              <p class="toggle-subtitle" id="toggleSubtitle">Currently active</p>
+              <p class="toggle-title">Focus Now</p>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="extensionToggle">
@@ -32,53 +28,11 @@
         </div>
       </section>
 
-      <!-- API Key Configuration Section -->
-      <section class="config-section">
-        <h2>🔑 API Configuration</h2>
-        <div class="config-card">
-          <div class="api-status" id="apiStatus">
-            <span class="status-indicator" id="statusIndicator">⚠️</span>
-            <span id="statusText">API Key not configured</span>
-          </div>
-          
-          <div class="input-group">
-            <label for="apiKeyInput">Gemini API Key:</label>
-            <div class="input-with-button">
-              <input 
-                type="password" 
-                id="apiKeyInput" 
-                placeholder="Enter your Gemini API key"
-                class="api-input"
-              >
-              <button id="toggleKeyVisibility" class="icon-btn" title="Show/Hide">👁️</button>
-            </div>
-          </div>
-          
-          <div class="button-group">
-            <button id="saveApiKey" class="btn btn-primary">💾 Save API Key</button>
-            <button id="testApiKey" class="btn btn-secondary" disabled>🧪 Test Connection</button>
-          </div>
-          
-          <div id="apiMessage" class="message"></div>
-          
-          <div class="info-box">
-            <p class="info-text">
-              <strong>🔒 Your API key is stored securely</strong><br>
-              It's encrypted and saved locally in Chrome's storage. Never shared.
-            </p>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="link">
-              Get your free Gemini API key →
-            </a>
-          </div>
-        </div>
-      </section>
-
       <!-- Task Configuration Section -->
-      <section class="config-section">
-        <h2>📝 Your Focus Goal</h2>
+      <section class="config-section focus-goal-section">
+        <h2>What do you wanna focus now?</h2>
         <div class="config-card">
           <div class="input-group">
-            <label for="taskInput">What's your current task?</label>
             <textarea 
               id="taskInput" 
               placeholder="E.g., Working on quarterly report, Studying for exam, Writing blog post..."
@@ -86,89 +40,146 @@
               class="task-input"
             ></textarea>
           </div>
-          <button id="saveTask" class="btn btn-primary">💾 Save Goal</button>
+          <button id="saveTask" class="btn btn-primary">Save Goal</button>
           <div id="taskMessage" class="message"></div>
         </div>
       </section>
 
-      <!-- Block List Section -->
-      <section class="config-section">
-        <h2>🚫 Strict Block List</h2>
-        <div class="config-card">
-          <p class="section-description">Sites that should ALWAYS trigger warnings (no AI check)</p>
-          <div class="input-group">
-            <label for="blockListInput">Add domains (one per line):</label>
-            <textarea 
-              id="blockListInput" 
-              placeholder="netflix.com&#10;tiktok.com&#10;youtube.com&#10;hulu.com"
-              rows="4"
-              class="blocklist-input"
-            ></textarea>
-          </div>
-          <button id="saveBlockList" class="btn btn-primary">💾 Save Block List</button>
-          <div id="blockListMessage" class="message"></div>
-          
-          <div class="current-blocks" id="currentBlocks">
-            <p class="small-label">Currently blocked:</p>
-            <div id="blockListDisplay" class="tag-container"></div>
-          </div>
+      <!-- Settings / Stats Toggles -->
+      <section class="config-section settings-toggle">
+        <div class="toggle-button-row">
+          <button id="settingsToggle" class="btn settings-btn">Settings</button>
+          <button id="statsToggle" class="btn settings-btn">Stats</button>
         </div>
+        <p class="settings-hint">Manage API keys, lists, and view your stats</p>
       </section>
 
-      <!-- Allow List Section -->
-      <section class="config-section">
-        <h2>✅ Allow List</h2>
-        <div class="config-card">
-          <p class="section-description">Sites that never need warnings. We'll skip checks here.</p>
-          <div class="input-group">
-            <label for="allowListInput">Add domains (one per line):</label>
-            <textarea 
-              id="allowListInput" 
-              placeholder="notion.so&#10;calendar.google.com&#10;companywiki.com"
-              rows="4"
-              class="allowlist-input"
-            ></textarea>
+      <div id="settingsPanel" class="collapsible-panel hidden">
+        <!-- API Key Configuration Section -->
+        <section class="config-section">
+          <h2>API Configuration</h2>
+          <div class="config-card">
+            <div class="api-status" id="apiStatus">
+              <span class="status-indicator" id="statusIndicator">!</span>
+              <span id="statusText">API Key not configured</span>
+            </div>
+            
+            <div class="input-group">
+              <label for="apiKeyInput">Gemini API Key:</label>
+              <div class="input-with-button">
+                <input 
+                  type="password" 
+                  id="apiKeyInput" 
+                  placeholder="Enter your Gemini API key"
+                  class="api-input"
+                >
+                <button id="toggleKeyVisibility" class="icon-btn" title="Show/Hide">Show</button>
+              </div>
+            </div>
+            
+            <div class="button-group">
+              <button id="saveApiKey" class="btn btn-primary">Save API Key</button>
+              <button id="testApiKey" class="btn btn-secondary" disabled>Test Connection</button>
+            </div>
+            
+            <div id="apiMessage" class="message"></div>
+            
+            <div class="info-box">
+              <p class="info-text">
+                <strong>Your API key is stored securely</strong><br>
+                It's encrypted and saved locally in Chrome's storage. Never shared.
+              </p>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" class="link">
+                Get your free Gemini API key →
+              </a>
+            </div>
           </div>
-          <button id="saveAllowList" class="btn btn-secondary">✅ Save Allow List</button>
-          <div id="allowListMessage" class="message"></div>
-          
-          <div class="current-blocks" id="currentAllows">
-            <p class="small-label">Currently allowed:</p>
-            <div id="allowListDisplay" class="tag-container"></div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- Status Section -->
-      <section class="status-section">
-        <h2>📊 Current Status</h2>
-        <div class="status-card">
-          <div class="status-item">
-            <span class="label">Extension Status:</span>
-            <span class="value active" id="extensionStatus">Active ✓</span>
+        <!-- Block List Section -->
+        <section class="config-section">
+          <h2>Strict Block List</h2>
+          <div class="config-card">
+            <p class="section-description">Sites that should ALWAYS trigger warnings (no AI check)</p>
+            <div class="input-group">
+              <label for="blockListInput">Add domains (one per line):</label>
+              <textarea 
+                id="blockListInput" 
+                placeholder="netflix.com&#10;tiktok.com&#10;youtube.com&#10;hulu.com"
+                rows="4"
+                class="blocklist-input"
+              ></textarea>
+            </div>
+            <button id="saveBlockList" class="btn btn-primary">Save Block List</button>
+            <div id="blockListMessage" class="message"></div>
+            
+            <div class="current-blocks" id="currentBlocks">
+              <p class="small-label">Currently blocked:</p>
+              <div id="blockListDisplay" class="tag-container"></div>
+            </div>
           </div>
-          <div class="status-item">
-            <span class="label">Current Page:</span>
-            <span class="value" id="currentUrl">Loading...</span>
+        </section>
+
+        <!-- Allow List Section -->
+        <section class="config-section">
+          <h2>Allow List</h2>
+          <div class="config-card">
+            <p class="section-description">Sites that never need warnings. We'll skip checks here.</p>
+            <div class="input-group">
+              <label for="allowListInput">Add domains (one per line):</label>
+              <textarea 
+                id="allowListInput" 
+                placeholder="notion.so&#10;calendar.google.com&#10;companywiki.com"
+                rows="4"
+                class="allowlist-input"
+              ></textarea>
+            </div>
+            <button id="saveAllowList" class="btn btn-secondary">Save Allow List</button>
+            <div id="allowListMessage" class="message"></div>
+            
+            <div class="current-blocks" id="currentAllows">
+              <p class="small-label">Currently allowed:</p>
+              <div id="allowListDisplay" class="tag-container"></div>
+            </div>
           </div>
-          <div class="status-item">
-            <span class="label">Pages Analyzed:</span>
-            <span class="value" id="pagesAnalyzed">0</span>
+        </section>
+      </div>
+
+      <div id="statsPanel" class="collapsible-panel hidden">
+        <section class="status-section">
+          <h2>Stats</h2>
+          <div class="status-card">
+            <div class="status-item">
+              <span class="label">Extension Status:</span>
+              <span class="value active" id="extensionStatus">Active</span>
+            </div>
+            <div class="status-item">
+              <span class="label">Current Page:</span>
+              <span class="value" id="currentUrl">Loading...</span>
+            </div>
+            <div class="status-item">
+              <span class="label">Pages Analyzed:</span>
+              <span class="value" id="pagesAnalyzed">0</span>
+            </div>
+            <div class="status-item">
+              <span class="label">AI Analysis Count:</span>
+              <span class="value ai" id="aiAnalysisCount">0</span>
+            </div>
+            <div class="status-item">
+              <span class="label">Warnings Shown:</span>
+              <span class="value" id="warningsShown">0</span>
+            </div>
+            <div class="status-item">
+              <span class="label">Times Went Back:</span>
+              <span class="value success" id="timesWentBack">0</span>
+            </div>
+            <div class="status-item">
+              <span class="label">Times Continued:</span>
+              <span class="value warning" id="timesContinued">0</span>
+            </div>
           </div>
-          <div class="status-item">
-            <span class="label">AI Analysis Count:</span>
-            <span class="value ai" id="aiAnalysisCount">0</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Warnings Shown:</span>
-            <span class="value" id="warningsShown">0</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Times Went Back:</span>
-            <span class="value success" id="timesWentBack">0</span>
-          </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
     </main>
 

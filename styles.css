@@ -72,6 +72,74 @@ section h2 {
   margin-bottom: 25px;
 }
 
+.settings-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toggle-button-row {
+  display: flex;
+  gap: 10px;
+}
+
+.settings-btn {
+  flex: 1;
+  background: #111111;
+  color: #ffffff;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.settings-btn:hover {
+  background: #2a2a2a;
+}
+
+.settings-hint {
+  font-size: 12px;
+  color: #5c5f66;
+  text-align: right;
+}
+
+.collapsible-panel.hidden {
+  display: none;
+}
+
+.collapsible-panel {
+  animation: fadeIn 0.2s ease;
+}
+
+.focus-goal-section h2 {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.focus-goal-section .config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.focus-goal-section .input-group {
+  width: 100%;
+}
+
+.focus-goal-section .input-group label {
+  width: 100%;
+  text-align: center;
+}
+
+.focus-goal-section .btn {
+  align-self: center;
+}
+
 .config-card {
   background: #ffffff;
   border-radius: 12px;
@@ -113,8 +181,8 @@ section h2 {
 .toggle-switch {
   position: relative;
   display: inline-block;
-  width: 48px;
-  height: 26px;
+  width: 64px;
+  height: 28px;
 }
 
 .toggle-switch input {
@@ -148,13 +216,33 @@ section h2 {
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
 }
 
+.toggle-slider:after {
+  content: 'OFF';
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  color: #555;
+  letter-spacing: 0.5px;
+  transition: color 0.3s, left 0.3s, right 0.3s;
+}
+
 .toggle-switch input:checked + .toggle-slider {
   background: #111111;
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
-  transform: translateX(22px);
+  transform: translateX(38px);
   background-color: #f5f5f5;
+}
+
+.toggle-switch input:checked + .toggle-slider:after {
+  content: 'ON';
+  left: 8px;
+  right: auto;
+  color: #f5f5f5;
 }
 
 /* API Status */
@@ -421,6 +509,11 @@ section h2 {
 
 .status-item .value.success {
   color: #2c7a3d;
+  font-weight: 700;
+}
+
+.status-item .value.warning {
+  color: #b4690e;
   font-weight: 700;
 }
 

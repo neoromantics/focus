@@ -1,6 +1,6 @@
 // content.js - Content Script with SPA Navigation Detection
 
-console.log('🌐 Focus Guardian loaded on:', window.location.href);
+console.log('Focus Guardian loaded on:', window.location.href);
 
 const OVERLAY_ID = 'focus-guardian-overlay';
 const GOAL_NOTICE_ID = 'focus-goal-required-notice';
@@ -15,7 +15,7 @@ const FocusGuardianContent = (() => {
   };
   
   function init() {
-    console.log('📄 Content script initialized');
+    console.log('Content script initialized');
     injectFadeStyles();
     checkPageStatus();
     setupUrlChangeDetection();
@@ -59,7 +59,7 @@ const FocusGuardianContent = (() => {
       }
     }, 1000);
     
-    console.log('✅ URL change detection enabled');
+    console.log('URL change detection enabled');
   }
   
   function onUrlChange() {
@@ -69,7 +69,7 @@ const FocusGuardianContent = (() => {
       return;
     }
     
-    console.log('🔄 URL changed!');
+    console.log('URL changed!');
     console.log('   Old:', state.lastUrl);
     console.log('   New:', newUrl);
     
@@ -78,35 +78,35 @@ const FocusGuardianContent = (() => {
     
     clearTimeout(state.checkTimeout);
     state.checkTimeout = setTimeout(() => {
-      console.log('🔍 Re-analyzing new page...');
+      console.log('Re-analyzing new page...');
       checkPageStatus();
     }, 1500);
   }
   
   async function checkPageStatus() {
     try {
-      console.log('🔍 Getting HTML from page...');
+      console.log('Getting HTML from page...');
       const html = document.documentElement.outerHTML;
-      console.log('📄 HTML length:', html.length, 'characters');
+      console.log('HTML length:', html.length, 'characters');
       
-      console.log('📤 Sending to background script...');
+      console.log('Sending to background script...');
       const response = await chrome.runtime.sendMessage({
         action: 'checkUrl',
         url: window.location.href,
         html
       });
       
-    console.log('📊 Received response:', response);
+    console.log('Received response:', response);
     
     if (
-      response?.reason === 'AI did not provide clear answer - allowing access by default' &&
+      response?.reason === 'AI did not provide clear answer - allowing access by default'&&
       response.rawAiResponse
     ) {
       console.warn('Focus Guardian: raw AI response (unclear):', response.rawAiResponse);
     }
       
-      if (response && (response.source === 'disabled' || response.extensionEnabled === false)) {
-        console.log('⏸️ Focus Guardian disabled. Skipping monitoring.');
+      if (response && (response.source === 'disabled'|| response.extensionEnabled === false)) {
+        console.log('Focus Guardian disabled. Skipping monitoring.');
         hideWarningOverlay();
         hideFocusGoalNotice();
         state.warningShown = false;
@@ -121,13 +121,13 @@ const FocusGuardianContent = (() => {
       hideFocusGoalNotice();
       
       if (response && response.shouldWarn && !state.warningShown) {
-        console.log('⚠️ Showing warning overlay');
+        console.log('Showing warning overlay');
         showWarningOverlay(response);
       } else if (response && !response.shouldWarn) {
-        console.log('✅ Site allowed, no warning');
+        console.log('Site allowed, no warning');
       }
     } catch (error) {
-      console.error('❌ Error in checkPageStatus:', error);
+      console.error('Error in checkPageStatus:', error);
     }
   }
   
@@ -284,32 +284,32 @@ const FocusGuardianContent = (() => {
       </style>
       
       <div class="fg-warning-card">
-        <div class="fg-warning-icon">⚠️</div>
+        <div class="fg-warning-icon"></div>
         <h1 class="fg-warning-title">Focus Check!</h1>
         <p class="fg-warning-message">
           You're about to visit a site that might distract you from your goal.
         </p>
         <div class="fg-warning-task">
-          📝 Your goal: ${escapeHtml(task)}
+           Your goal: ${escapeHtml(task)}
         </div>
         <p class="fg-warning-reason">
-          ${isBlocked ? '🚫 This site is in your block list' : reason}
+          ${isBlocked ? 'This site is in your block list': reason}
         </p>
         
       <div class="fg-button-group">
-        <button class="fg-button fg-button-primary" id="fg-go-back">
+        <button class="fg-button fg-button-primary"id="fg-go-back">
           ← Go Back
         </button>
-        <button class="fg-button fg-button-secondary" id="fg-continue">
+        <button class="fg-button fg-button-secondary"id="fg-continue">
           Continue Anyway
         </button>
-        <button class="fg-button fg-button-link" id="fg-allow-site">
+        <button class="fg-button fg-button-link"id="fg-allow-site">
           Always allow
         </button>
       </div>
         
         <div class="fg-stats">
-          Staying focused helps you achieve your goals faster! 🎯
+          Staying focused helps you achieve your goals faster! 
         </div>
       </div>
     `;
@@ -336,7 +336,7 @@ const FocusGuardianContent = (() => {
     
     sendBackgroundMessage('warningShown');
     
-    console.log('🚨 Warning overlay displayed');
+    console.log('Warning overlay displayed');
   }
   
   function hideWarningOverlay() {
@@ -415,7 +415,7 @@ const FocusGuardianContent = (() => {
         }
       </style>
       <div class="fg-goal-card">
-        <div class="fg-goal-icon">📝</div>
+        <div class="fg-goal-icon"></div>
         <h3>Set your focus goal</h3>
         <p>${data?.reason || 'Focus Guardian needs your goal to analyze sites.'}</p>
         <button id="fg-open-popup">Open Focus Guardian</button>
@@ -468,7 +468,7 @@ const FocusGuardianContent = (() => {
     const url = targetUrl || window.location.href;
     sendBackgroundMessage('allowCurrentUrl', { url })
       .then(() => {
-        console.log('✅ Site added to allow list:', url);
+        console.log('Site added to allow list:', url);
         hideWarningOverlay();
       })
       .catch(error => {
@@ -502,4 +502,4 @@ if (document.readyState === 'loading') {
   FocusGuardianContent.init();
 }
 
-console.log('✅ Content script initialized (Phase 3)');
+console.log('Content script initialized (Phase 3)');

@@ -42,7 +42,7 @@ async function analyzePageWithAI(pageInfo, focusGoal, apiKey) {
     const result = await response.json();
     const aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
-    console.log('🤖 AI Response:', aiResponse);
+    console.log('AI Response:', aiResponse);
     
     // Parse AI response
     return parseAIResponse(aiResponse, pageInfo);
@@ -76,8 +76,8 @@ GUIDELINES:
 - If uncertain, lean towards allowing access
 
 RESPOND WITH ONLY ONE OF THESE:
-- "DISTRACTION" - if the site will likely distract from the goal
-- "ON_TRACK" - if the site is relevant to the goal or neutral work/research
+- "DISTRACTION"- if the site will likely distract from the goal
+- "ON_TRACK"- if the site is relevant to the goal or neutral work/research
 
 Your response (DISTRACTION or ON_TRACK):`;
 }
@@ -97,14 +97,14 @@ function parseAIResponse(aiResponse, pageInfo) {
     // AI might have provided explanation
     const lines = aiResponse.split('\n');
     if (lines.length > 1) {
-      reason = lines.slice(1).join(' ').trim() || reason;
+      reason = lines.slice(1).join('').trim() || reason;
     }
   }
   
   return {
     shouldWarn: isDistraction,
     isDistraction: isDistraction,
-    reason: isDistraction ? 'AI detected this might distract from your goal' : 'Site appears relevant to your goal',
+    reason: isDistraction ? 'AI detected this might distract from your goal': 'Site appears relevant to your goal',
     aiReasoning: reason,
     timestamp: Date.now()
   };
@@ -135,7 +135,7 @@ function shouldSkipAIAnalysis(url) {
 }
 
 // Export functions
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== 'undefined'&& module.exports) {
   module.exports = {
     analyzePageWithAI,
     shouldSkipAIAnalysis

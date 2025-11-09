@@ -12,7 +12,6 @@ const ELEMENT_IDS = {
   allowListInput: 'allowListInput',
   saveAllowList: 'saveAllowList',
   extensionToggle: 'extensionToggle',
-  toggleSubtitle: 'toggleSubtitle',
   extensionStatus: 'extensionStatus',
   toggleMessage: 'toggleMessage',
   apiMessage: 'apiMessage',
@@ -28,7 +27,11 @@ const ELEMENT_IDS = {
   timesContinued: 'timesContinued',
   aiAnalysisCount: 'aiAnalysisCount',
   blockListDisplay: 'blockListDisplay',
-  allowListDisplay: 'allowListDisplay'
+  allowListDisplay: 'allowListDisplay',
+  settingsToggle: 'settingsToggle',
+  settingsPanel: 'settingsPanel',
+  statsToggle: 'statsToggle',
+  statsPanel: 'statsPanel'
 };
 
 class PopupController {
@@ -39,7 +42,7 @@ class PopupController {
   }
   
   async init() {
-    console.log('✅ Popup loaded successfully!');
+    console.log('Popup loaded successfully!');
     this.cacheElements();
     this.setupEventListeners();
     await Promise.all([
@@ -56,22 +59,26 @@ class PopupController {
   }
   
   setupEventListeners() {
-    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, saveBlockList, extensionToggle } = this.elements;
+    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, saveBlockList, extensionToggle, settingsToggle, statsToggle } = this.elements;
     
-    if (!apiKeyInput) return;
+    settingsToggle?.addEventListener('click', () => this.toggleSettingsPanel());
+    statsToggle?.addEventListener('click', () => this.toggleStatsPanel());
     
-    toggleKeyVisibility?.addEventListener('click', () => {
-      const isPassword = apiKeyInput.type === 'password';
-      apiKeyInput.type = isPassword ? 'text' : 'password';
-      toggleKeyVisibility.textContent = isPassword ? '🙈' : '👁️';
-    });
+    if (apiKeyInput) {
+      toggleKeyVisibility?.addEventListener('click', () => {
+        const isPassword = apiKeyInput.type === 'password';
+        apiKeyInput.type = isPassword ? 'text': 'password';
+        toggleKeyVisibility.textContent = isPassword ? '': '';
+      });
+      
+      apiKeyInput.addEventListener('input', this.onApiInputChanged);
+      saveApiKey?.addEventListener('click', () => this.saveApiKey());
+      testApiKey?.addEventListener('click', () => this.testApiConnection());
+    }
     
-    saveApiKey?.addEventListener('click', () => this.saveApiKey());
-    testApiKey?.addEventListener('click', () => this.testApiConnection());
     saveTask?.addEventListener('click', () => this.saveTask());
     saveBlockList?.addEventListener('click', () => this.saveBlockList());
     this.elements.saveAllowList?.addEventListener('click', () => this.saveAllowList());
-    apiKeyInput.addEventListener('input', this.onApiInputChanged);
     extensionToggle?.addEventListener('change', this.handleExtensionToggle);
   }
   
@@ -137,7 +144,7 @@ class PopupController {
     
     try {
       await chrome.storage.local.set({ geminiApiKey: apiKey });
-      this.showMessage(messageDiv, '✅ API Key saved successfully!', 'success');
+      this.showMessage(messageDiv, 'API Key saved successfully!', 'success');
       this.updateApiStatus(true);
       if (this.elements.testApiKey) {
         this.elements.testApiKey.disabled = false;
@@ -145,12 +152,12 @@ class PopupController {
       
       console.log('API Key saved (length:', apiKey.length, ')');
       
-      chrome.runtime.sendMessage({ action: 'apiKeyUpdated' }).catch(err => {
+      chrome.runtime.sendMessage({ action: 'apiKeyUpdated'}).catch(err => {
         console.log('Could not notify background:', err);
       });
     } catch (error) {
       console.error('Error saving API key:', error);
-      this.showMessage(messageDiv, '❌ Failed to save API key', 'error');
+      this.showMessage(messageDiv, 'Failed to save API key', 'error');
     }
   }
   
@@ -158,7 +165,7 @@ class PopupController {
     if (!this.elements.testApiKey) return;
     const messageDiv = this.elements.apiMessage;
     
-    setButtonLoading(this.elements.testApiKey, true, '🔄 Testing...');
+    setButtonLoading(this.elements.testApiKey, true, 'Testing...');
     
     try {
       const data = await chrome.storage.local.get('geminiApiKey');
@@ -172,10 +179,10 @@ class PopupController {
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json'},
           body: JSON.stringify({
             contents: [{
-              parts: [{ text: 'Hello! Just testing the connection. Please respond with "OK".' }]
+              parts: [{ text: 'Hello! Just testing the connection. Please respond with "OK".'}]
             }]
           })
         }
@@ -189,11 +196,11 @@ class PopupController {
       const result = await response.json();
       console.log('API Test successful:', result);
       
-      this.showMessage(messageDiv, '✅ Connection successful! API key is working.', 'success');
-      this.updateApiStatus(true, 'Connected ✓');
+      this.showMessage(messageDiv, 'Connection successful! API key is working.', 'success');
+      this.updateApiStatus(true, 'Connected ');
     } catch (error) {
       console.error('API test failed:', error);
-      this.showMessage(messageDiv, `❌ Connection failed: ${error.message}`, 'error');
+      this.showMessage(messageDiv, ` Connection failed: ${error.message}`, 'error');
       this.updateApiStatus(false);
     } finally {
       setButtonLoading(this.elements.testApiKey, false);
@@ -211,13 +218,13 @@ class PopupController {
     
     try {
       await chrome.storage.local.set({ currentTask: task });
-      this.showMessage(messageDiv, '✅ Focus goal saved!', 'success');
+      this.showMessage(messageDiv, 'Focus goal saved!', 'success');
       
       chrome.runtime.sendMessage({ action: 'taskUpdated', task }).catch(() => {});
       console.log('Task saved:', task);
     } catch (error) {
       console.error('Error saving task:', error);
-      this.showMessage(messageDiv, '❌ Failed to save goal', 'error');
+      this.showMessage(messageDiv, 'Failed to save goal', 'error');
     }
   }
   
@@ -234,8 +241,8 @@ class PopupController {
       this.showMessage(
         messageDiv,
         domains.length === 0
-          ? '✔ Block list cleared.'
-          : `✅ Saved ${domains.length} blocked domains!`,
+          ? 'Block list cleared.'
+          : ` Saved ${domains.length} blocked domains!`,
         'success'
       );
       
@@ -243,7 +250,7 @@ class PopupController {
       console.log('Block list saved:', domains);
     } catch (error) {
       console.error('Error saving block list:', error);
-      this.showMessage(messageDiv, '❌ Failed to save block list', 'error');
+      this.showMessage(messageDiv, 'Failed to save block list', 'error');
     }
   }
   
@@ -260,8 +267,8 @@ class PopupController {
       this.showMessage(
         messageDiv,
         domains.length === 0
-          ? '✔ Allow list cleared.'
-          : `✅ Saved ${domains.length} allowed domains!`,
+          ? 'Allow list cleared.'
+          : ` Saved ${domains.length} allowed domains!`,
         'success'
       );
       
@@ -269,7 +276,7 @@ class PopupController {
       console.log('Allow list saved:', domains);
     } catch (error) {
       console.error('Error saving allow list:', error);
-      this.showMessage(messageDiv, '❌ Failed to save allow list', 'error');
+      this.showMessage(messageDiv, 'Failed to save allow list', 'error');
     }
   }
   
@@ -304,11 +311,11 @@ class PopupController {
     if (!indicator || !statusText) return;
     
     if (isConfigured) {
-      indicator.textContent = '✅';
+      indicator.textContent = '';
       statusText.textContent = text || 'API Key configured';
       statusText.style.color = '#28a745';
     } else {
-      indicator.textContent = '⚠️';
+      indicator.textContent = '';
       statusText.textContent = 'API Key not configured';
       statusText.style.color = '#dc3545';
     }
@@ -360,7 +367,7 @@ class PopupController {
         }
       });
       
-      console.log('📊 Statistics updated:', statFields);
+      console.log('Statistics updated:', statFields);
     } catch (error) {
       console.error('Error updating statistics:', error);
     }
@@ -371,6 +378,11 @@ class PopupController {
     const enabled = toggle.checked;
     const messageBox = this.elements.toggleMessage;
     toggle.disabled = true;
+    
+    if (messageBox) {
+      messageBox.style.display = 'none';
+      messageBox.textContent = '';
+    }
     
     try {
       const response = await chrome.runtime.sendMessage({
@@ -384,10 +396,6 @@ class PopupController {
       
       await chrome.storage.local.set({ extensionEnabled: enabled });
       this.updateExtensionStateUI(enabled);
-      
-      if (messageBox) {
-        this.showMessage(messageBox, enabled ? 'Focus Guardian is active' : 'Focus Guardian is paused', 'success');
-      }
     } catch (error) {
       console.error('Error updating extension status:', error);
       this.updateExtensionStateUI(!enabled);
@@ -400,18 +408,15 @@ class PopupController {
   }
   
   updateExtensionStateUI(isEnabled) {
-    const { extensionToggle, toggleSubtitle, extensionStatus } = this.elements;
+    const { extensionToggle, extensionStatus } = this.elements;
     
     if (extensionToggle) {
       extensionToggle.checked = isEnabled;
     }
     
-    if (toggleSubtitle) {
-      toggleSubtitle.textContent = isEnabled ? 'Currently active' : 'Protection paused';
-    }
     
     if (extensionStatus) {
-      extensionStatus.textContent = isEnabled ? 'Active ✓' : 'Paused ✕';
+      extensionStatus.textContent = isEnabled ? 'Active ': 'Paused ';
       extensionStatus.classList.toggle('active', isEnabled);
       extensionStatus.classList.toggle('inactive', !isEnabled);
     }
@@ -434,6 +439,26 @@ class PopupController {
     if (!this.elements.testApiKey) return;
     const hasKey = event.target.value.trim().length > 0;
     this.elements.testApiKey.disabled = !hasKey;
+  }
+
+  toggleSettingsPanel() {
+    const panel = this.elements.settingsPanel;
+    const button = this.elements.settingsToggle;
+    if (!panel || !button) return;
+    
+    const isHidden = panel.classList.toggle('hidden');
+    button.textContent = isHidden ? 'Settings': 'Hide Settings';
+    button.setAttribute('aria-expanded', String(!isHidden));
+  }
+
+  toggleStatsPanel() {
+    const panel = this.elements.statsPanel;
+    const button = this.elements.statsToggle;
+    if (!panel || !button) return;
+    
+    const isHidden = panel.classList.toggle('hidden');
+    button.textContent = isHidden ? 'Stats': 'Hide Stats';
+    button.setAttribute('aria-expanded', String(!isHidden));
   }
 }
 

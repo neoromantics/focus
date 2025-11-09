@@ -1,6 +1,6 @@
 // background.js - Background Service Worker with Phase 4 AI Analysis + JSON Mode
 
-console.log('🚀 Focus Guardian Background Service Worker Started (Phase 4 - AI Enabled)!');
+console.log('Focus Guardian Background Service Worker Started (Phase 4 - AI Enabled)!');
 
 const storage = chrome.storage.local;
 
@@ -121,7 +121,7 @@ const cacheManager = {
     
     if (cacheChanged) {
       storage.set({ urlCache: config.cache });
-      console.log('✅ Cache cleaned. New size:', Object.keys(config.cache).length);
+      console.log('Cache cleaned. New size:', Object.keys(config.cache).length);
     }
   }
 };
@@ -151,7 +151,7 @@ function isUserAllowed(hostname = '') {
   );
 }
 
-// 🔥 FIX: Load configuration immediately when service worker starts
+//  FIX: Load configuration immediately when service worker starts
 loadConfiguration();
 
 // Initialize on install
@@ -159,7 +159,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('Extension installed/updated:', details.reason);
   
   if (details.reason === 'install') {
-    console.log('🎉 First time installation!');
+    console.log('First time installation!');
     
     // Set default configuration
     await storage.set({
@@ -188,7 +188,7 @@ async function loadConfiguration() {
     cacheManager.loadFrom(data.urlCache || {});
     statsManager.initFrom(data);
     
-    console.log('📋 Configuration loaded:', {
+    console.log('Configuration loaded:', {
       hasApiKey: !!config.apiKey,
       apiKeyLength: config.apiKey ? config.apiKey.length : 0,
       hasTask: !!config.currentTask,
@@ -206,7 +206,7 @@ async function loadConfiguration() {
 
 // Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('📨 Message received:', request.action);
+  console.log('Message received:', request.action);
   
   switch (request.action) {
     case 'taskUpdated':
@@ -216,13 +216,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'blockListUpdated':
       config.blockList = request.blockList;
-      console.log('✅ Block list updated:', config.blockList);
+      console.log('Block list updated:', config.blockList);
       sendResponse({ success: true });
       break;
       
     case 'allowListUpdated':
       updateAllowList(request.allowList || []).then(() => {
-        console.log('✅ Allow list updated:', config.allowList);
+        console.log('Allow list updated:', config.allowList);
         sendResponse({ success: true });
       }).catch(error => {
         console.error('Failed to update allow list:', error);
@@ -231,9 +231,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
       
     case 'apiKeyUpdated':
-      // 🔥 FIX: Reload configuration when API key is saved
+      //  FIX: Reload configuration when API key is saved
       loadConfiguration().then(() => {
-        console.log('✅ Configuration reloaded after API key update');
+        console.log('Configuration reloaded after API key update');
         sendResponse({ success: true });
       });
       return true; // Keep channel open for async response
@@ -277,7 +277,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'setExtensionEnabled':
       config.enabled = request.enabled === true;
       storage.set({ extensionEnabled: config.enabled });
-      console.log(`🛠️ Extension ${config.enabled ? 'enabled' : 'disabled'} via popup`);
+      console.log(` Extension ${config.enabled ? 'enabled': 'disabled'} via popup`);
       sendResponse({ success: true, enabled: config.enabled });
       break;
       
@@ -294,7 +294,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           console.error('Failed to open popup window:', chrome.runtime.lastError.message);
           sendResponse({ success: false, error: chrome.runtime.lastError.message });
         } else {
-          console.log('🪟 Focus Guardian popup opened:', createdWindow?.id);
+          console.log('Focus Guardian popup opened:', createdWindow?.id);
           sendResponse({ success: true });
         }
       });
@@ -302,7 +302,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
       
     case 'test':
-      sendResponse({ success: true, message: 'Background script responding!' });
+      sendResponse({ success: true, message: 'Background script responding!'});
       break;
   }
   
@@ -335,11 +335,11 @@ async function handleUrlCheck(url, html, sendResponse) {
     // Increment pages analyzed
     await statsManager.increment('pagesAnalyzed');
     
-    console.log(`📊 Analyzing page #${config.stats.pagesAnalyzed}:`, hostname);
+    console.log(` Analyzing page #${config.stats.pagesAnalyzed}:`, hostname);
     
     // Step 1: Check if in strict block list (highest priority)
     if (isStrictlyBlocked(hostname)) {
-      console.log('🚫 URL is in block list:', hostname);
+      console.log('URL is in block list:', hostname);
       sendResponse({
         shouldWarn: true,
         isBlocked: true,
@@ -353,7 +353,7 @@ async function handleUrlCheck(url, html, sendResponse) {
     
     // Step 1.5: Allow list check
     if (isUserAllowed(hostname)) {
-      console.log('✅ URL is in allow list:', hostname);
+      console.log('URL is in allow list:', hostname);
       sendResponse({
         shouldWarn: false,
         isAllowed: true,
@@ -368,7 +368,7 @@ async function handleUrlCheck(url, html, sendResponse) {
     // Step 2: Check cache
     const cachedDecision = cacheManager.get(url);
     if (cachedDecision) {
-      console.log('📦 Using cached AI decision for:', hostname);
+      console.log('Using cached AI decision for:', hostname);
       sendResponse({
         ...cachedDecision,
         cached: true,
@@ -380,7 +380,7 @@ async function handleUrlCheck(url, html, sendResponse) {
     
     // Step 3: Check if we should skip AI analysis
     if (shouldSkipAIAnalysis(url)) {
-      console.log('⏭️ Skipping AI analysis for whitelisted site:', hostname);
+      console.log('Skipping AI analysis for whitelisted site:', hostname);
       sendResponse({
         shouldWarn: false,
         reason: 'Common productivity site - allowed',
@@ -391,12 +391,12 @@ async function handleUrlCheck(url, html, sendResponse) {
       return;
     }
     
-    console.log('🔍 Site NOT in whitelist, will use AI:', hostname);
+    console.log('Site NOT in whitelist, will use AI:', hostname);
     
     // Step 4: Check if API key and task are configured
     if (!config.apiKey) {
-      console.log('⚠️ No API key configured - allowing access');
-      console.log('⚠️ API key in config:', config.apiKey);
+      console.log('No API key configured - allowing access');
+      console.log('API key in config:', config.apiKey);
       sendResponse({
         shouldWarn: false,
         reason: 'API key not configured - cannot analyze',
@@ -408,7 +408,7 @@ async function handleUrlCheck(url, html, sendResponse) {
     }
     
     if (!config.currentTask) {
-      console.log('⚠️ No focus goal set - allowing access');
+      console.log('No focus goal set - allowing access');
       sendResponse({
         shouldWarn: false,
         reason: 'No focus goal set - cannot analyze',
@@ -421,7 +421,7 @@ async function handleUrlCheck(url, html, sendResponse) {
     
     // Step 5: Check if HTML is provided
     if (!html || html.length === 0) {
-      console.log('⚠️ No HTML provided - allowing access');
+      console.log('No HTML provided - allowing access');
       sendResponse({
         shouldWarn: false,
         reason: 'Could not get page content',
@@ -433,10 +433,10 @@ async function handleUrlCheck(url, html, sendResponse) {
     }
     
     // Step 6: Perform AI Analysis
-    console.log('🤖 Starting AI analysis for:', hostname);
-    console.log('📝 User goal:', config.currentTask);
-    console.log('📄 HTML length:', html.length, 'characters');
-    console.log('📄 Sending first 30k characters to AI');
+    console.log('Starting AI analysis for:', hostname);
+    console.log('User goal:', config.currentTask);
+    console.log('HTML length:', html.length, 'characters');
+    console.log('Sending first 30k characters to AI');
     
     try {
       const aiResult = await analyzePageWithAI(url, html, config.currentTask, config.apiKey);
@@ -447,7 +447,7 @@ async function handleUrlCheck(url, html, sendResponse) {
       // Cache the result
       cacheManager.set(url, aiResult);
       
-      console.log('✅ AI Analysis complete:', aiResult.shouldWarn ? 'DISTRACTION' : 'ON_TRACK');
+      console.log('AI Analysis complete:', aiResult.shouldWarn ? 'DISTRACTION': 'ON_TRACK');
       
       sendResponse({
         ...aiResult,
@@ -457,7 +457,7 @@ async function handleUrlCheck(url, html, sendResponse) {
       });
       
     } catch (aiError) {
-      console.error('❌ AI Analysis failed:', aiError);
+      console.error('AI Analysis failed:', aiError);
       sendResponse({
         shouldWarn: false,
         reason: 'AI analysis failed - allowing access',
@@ -479,14 +479,14 @@ async function handleUrlCheck(url, html, sendResponse) {
   }
 }
 
-// 🔥 NEW: AI Analysis with JSON Mode (Strict Output)
+//  NEW: AI Analysis with JSON Mode (Strict Output)
 async function analyzePageWithAI(url, html, focusGoal, apiKey) {
   const maxRetries = 3;
   let attempt = 0;
   
   while (attempt < maxRetries) {
     attempt++;
-    console.log(`🤖 AI Analysis attempt ${attempt}/${maxRetries}`);
+    console.log(` AI Analysis attempt ${attempt}/${maxRetries}`);
     
     try {
       // Limit HTML to 30000 characters
@@ -499,7 +499,7 @@ async function analyzePageWithAI(url, html, focusGoal, apiKey) {
       const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
       const pageDesc = descMatch ? descMatch[1] : '';
       
-      // 🔥 NEW: Improved prompt with clearer instructions
+      //  NEW: Improved prompt with clearer instructions
       const prompt = `Analyze if this website distracts from the user's goal.
 
 USER'S GOAL: "${focusGoal}"
@@ -519,10 +519,10 @@ RULES (STRICT, CONTENT-FIRST):
 7. If the content clearly helps the goal, allow it even if the domain is usually distracting.
 8. If the intent is unclear or recreational after checking the actual content, treat it as a distraction.
 
-EXAMPLE 1: Goal="Learning Python", URL="youtube.com/watch?v=python-tutorial" → NOT distraction
-EXAMPLE 2: Goal="Learning Python", URL="youtube.com/watch?v=funny-cats" → DISTRACTION
-EXAMPLE 3: Goal="Writing report", URL="reddit.com/r/funny" → DISTRACTION
-EXAMPLE 4: Goal="Research AI", URL="arxiv.org/ai-paper" → NOT distraction
+EXAMPLE 1: Goal="Learning Python", URL="youtube.com/watch?v=python-tutorial"→ NOT distraction
+EXAMPLE 2: Goal="Learning Python", URL="youtube.com/watch?v=funny-cats"→ DISTRACTION
+EXAMPLE 3: Goal="Writing report", URL="reddit.com/r/funny"→ DISTRACTION
+EXAMPLE 4: Goal="Research AI", URL="arxiv.org/ai-paper"→ NOT distraction
 
 Analyze this page content:
 ${htmlToSend.substring(0, 5000)}
@@ -534,7 +534,7 @@ Respond with ONLY a JSON object in this exact format:
   "reason": "Brief explanation"
 }`;
       
-      // 🔥 SOLUTION 1: Use response_mime_type for JSON mode
+      //  SOLUTION 1: Use response_mime_type for JSON mode
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
         {
@@ -551,7 +551,7 @@ Respond with ONLY a JSON object in this exact format:
             generationConfig: {
               temperature: 0.1,
               maxOutputTokens: 100,
-              responseMimeType: "application/json",  // 🔥 Force JSON output!
+              responseMimeType: "application/json",  //  Force JSON output!
               responseSchema: {
                 type: "object",
                 properties: {
@@ -583,14 +583,14 @@ Respond with ONLY a JSON object in this exact format:
       const result = await response.json();
       const aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
-      console.log('🤖 AI Raw Response:', aiResponse);
+      console.log('AI Raw Response:', aiResponse);
       
       // Parse JSON response
       try {
         const parsed = JSON.parse(aiResponse);
         
         if (typeof parsed.isDistraction === 'boolean') {
-          console.log('✅ Valid JSON response:', {
+          console.log('Valid JSON response:', {
             isDistraction: parsed.isDistraction,
             confidence: parsed.confidence,
             reason: parsed.reason
@@ -600,7 +600,7 @@ Respond with ONLY a JSON object in this exact format:
             shouldWarn: parsed.isDistraction,
             isDistraction: parsed.isDistraction,
             reason: parsed.reason || (parsed.isDistraction ? 
-              'AI detected this site distracts from your goal' : 
+              'AI detected this site distracts from your goal': 
               'AI determined this site is relevant to your goal'),
             confidence: parsed.confidence || 0,
             timestamp: Date.now()
@@ -609,26 +609,26 @@ Respond with ONLY a JSON object in this exact format:
           throw new Error('Invalid response format');
         }
       } catch (parseError) {
-        console.log('⚠️ JSON parse failed, trying fallback parsing...');
+        console.log('JSON parse failed, trying fallback parsing...');
         
         // Fallback: Try to extract boolean from text
         const fallback = parseAIResponseFallback(aiResponse);
         if (fallback.isValid) {
-          console.log('✅ Fallback parsing succeeded');
+          console.log('Fallback parsing succeeded');
           return {
             shouldWarn: fallback.isDistraction,
             isDistraction: fallback.isDistraction,
             reason: fallback.isDistraction ? 
-              'AI detected this site distracts from your goal' : 
+              'AI detected this site distracts from your goal': 
               'AI determined this site is relevant to your goal',
             timestamp: Date.now()
           };
         }
         
-        console.log('⚠️ All parsing failed, retrying...');
+        console.log('All parsing failed, retrying...');
         if (attempt >= maxRetries) {
-          console.log('❌ Max retries reached, defaulting to ALLOW (safe default)');
-          console.log('🧾 Raw AI response (unclear):', aiResponse);
+          console.log('Max retries reached, defaulting to ALLOW (safe default)');
+          console.log('Raw AI response (unclear):', aiResponse);
           return {
             shouldWarn: false,
             isDistraction: false,
@@ -639,7 +639,7 @@ Respond with ONLY a JSON object in this exact format:
         }
       }
     } catch (error) {
-      console.error(`❌ Attempt ${attempt} failed:`, error);
+      console.error(` Attempt ${attempt} failed:`, error);
       if (attempt >= maxRetries) {
         throw error;
       }
@@ -661,17 +661,17 @@ function parseAIResponseFallback(aiResponse) {
   }
   
   // Check for plain true/false
-  if (cleaned === 'true' || cleaned === 'yes' || cleaned === '1') {
+  if (cleaned === 'true'|| cleaned === 'yes'|| cleaned === '1') {
     return { isValid: true, isDistraction: true };
   }
-  if (cleaned === 'false' || cleaned === 'no' || cleaned === '0') {
+  if (cleaned === 'false'|| cleaned === 'no'|| cleaned === '0') {
     return { isValid: true, isDistraction: false };
   }
   
   // Try to extract from markdown code blocks
   const codeBlockMatch = cleaned.match(/```(?:json)?\s*\{[^}]*"isdistraction"\s*:\s*(true|false)/);
   if (codeBlockMatch) {
-    return { isValid: true, isDistraction: codeBlockMatch[1] === 'true' };
+    return { isValid: true, isDistraction: codeBlockMatch[1] === 'true'};
   }
   
   // Invalid response
@@ -690,7 +690,7 @@ function shouldSkipAIAnalysis(url) {
       'localhost'
     ];
     
-    const builtinAllowed = allowedDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain));
+    const builtinAllowed = allowedDomains.some(domain => hostname === domain || hostname.endsWith('.'+ domain));
     return builtinAllowed || isUserAllowed(hostname);
   } catch {
     return true;
@@ -700,7 +700,7 @@ function shouldSkipAIAnalysis(url) {
 // Event handlers
 async function handleWarningShown(url) {
   await statsManager.increment('warningsShown');
-  console.log(`⚠️ Warning shown (total: ${config.stats.warningsShown})`);
+  console.log(` Warning shown (total: ${config.stats.warningsShown})`);
 }
 
 async function handleUserWentBack(url) {
@@ -716,7 +716,7 @@ async function handleUserContinued(url) {
 async function handleAllowCurrentUrl(url) {
   const hostname = getHostname(url);
   if (!hostname) {
-    return { success: false, error: 'Invalid URL' };
+    return { success: false, error: 'Invalid URL'};
   }
   
   await addHostnameToAllowList(hostname);
@@ -731,13 +731,13 @@ async function handleAllowCurrentUrl(url) {
     });
   }
   
-  console.log(`✅ Added to allow list: ${hostname}`);
+  console.log(` Added to allow list: ${hostname}`);
   return { success: true, hostname };
 }
 
 // Monitor tab updates
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url && config.enabled) {
+  if (changeInfo.status === 'complete'&& tab.url && config.enabled) {
     try {
       const hostname = getHostname(tab.url);
       
@@ -745,11 +745,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         return;
       }
       
-      console.log('📄 Page completed loading:', hostname);
+      console.log('Page completed loading:', hostname);
       
       // Check block list
       if (isStrictlyBlocked(hostname)) {
-        console.log('🚫 Blocked site detected:', hostname);
+        console.log('Blocked site detected:', hostname);
         
         try {
           await chrome.tabs.sendMessage(tabId, {
@@ -778,7 +778,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     const tab = await chrome.tabs.get(activeInfo.tabId);
     if (tab.url && !tab.url.startsWith('chrome://')) {
       const hostname = getHostname(tab.url);
-      console.log('🔄 Switched to tab:', hostname);
+      console.log('Switched to tab:', hostname);
     }
   } catch (error) {
     // Ignore
@@ -794,15 +794,15 @@ setInterval(() => {
 setInterval(async () => {
   await storage.set({ urlCache: config.cache });
   await statsManager.persistAll();
-  console.log('💾 Stats saved:', config.stats);
+  console.log('Stats saved:', config.stats);
 }, STATS_SAVE_INTERVAL_MS);
 
-console.log('✅ Background script initialized (Phase 4 - AI Enabled with JSON Mode)');
+console.log('Background script initialized (Phase 4 - AI Enabled with JSON Mode)');
 
 function handleTaskUpdated(task) {
   config.currentTask = task;
   cacheManager.clear();
-  console.log('✅ Task updated:', task, '(cache cleared)');
+  console.log('Task updated:', task, '(cache cleared)');
 }
 
 function isStrictlyBlocked(hostname = '') {
