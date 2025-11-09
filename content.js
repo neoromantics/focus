@@ -153,115 +153,123 @@ const FocusGuardianContent = (() => {
           left: 0;
           width: 100%;
           height: 100%;
-          background: rgba(0, 0, 0, 0.85);
+          background: rgba(13, 16, 23, 0.65);
           z-index: 2147483647;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
+          }
+          
+          @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
-        }
-        
-        .fg-warning-card {
+          }
+          
+          .fg-warning-card {
           background: #ffffff;
-          border-radius: 18px;
-          padding: 36px;
+          border-radius: 28px;
+          padding: 40px 42px;
           max-width: 460px;
           width: 90%;
-          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
+          box-shadow: 0 45px 120px rgba(15, 23, 42, 0.25);
           text-align: center;
-          animation: slideUp 0.4s ease;
-          color: #111111;
-        }
-        
-        @keyframes slideUp {
+          animation: slideUp 0.35s ease;
+          color: #0f172a;
+          border: 1px solid rgba(15, 23, 42, 0.06);
+          }
+          
+          @keyframes slideUp {
           from { transform: translateY(30px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
-        }
-        
-        .fg-warning-icon {
-          font-size: 64px;
-          margin-bottom: 20px;
-        }
-        
-        .fg-warning-title {
-          font-size: 28px;
+          }
+          
+          .fg-warning-icon {
+          font-size: 56px;
+          margin-bottom: 18px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          }
+          
+          .fg-warning-title {
+          font-size: 30px;
           font-weight: 700;
-          color: #111111;
-          margin-bottom: 16px;
-        }
-        
-        .fg-warning-message {
-          font-size: 16px;
-          color: #444;
-          line-height: 1.6;
-          margin-bottom: 12px;
-        }
-        
-        .fg-warning-task {
+          color: #0f172a;
+          margin-bottom: 10px;
+          }
+          
+          .fg-warning-message {
           font-size: 15px;
-          color: #0d5ea6;
-          background: #e9f2ff;
-          border: 1px solid #cfe3ff;
-          padding: 12px 16px;
-          border-radius: 10px;
-          margin: 20px 0;
+          color: #475467;
+          line-height: 1.6;
+          margin-bottom: 18px;
+          }
+          
+          .fg-warning-task {
+          font-size: 15px;
+          color: #1849a9;
+          background: #eaf1ff;
+          border: 1px solid #d5e2ff;
+          padding: 14px 18px;
+          border-radius: 14px;
+          margin: 22px 0 18px;
           font-weight: 600;
-        }
-        
-        .fg-warning-reason {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          }
+          
+          .fg-warning-reason {
           font-size: 14px;
-          color: #666;
-          margin-bottom: 24px;
+          color: #64748b;
+          margin-bottom: 28px;
           font-style: italic;
-        }
-        
-        .fg-button-group {
+          }
+          
+          .fg-button-group {
           display: flex;
           gap: 12px;
           justify-content: center;
           margin-top: 24px;
           flex-wrap: wrap;
-        }
-        
-        .fg-button {
-          padding: 14px 28px;
-          border-radius: 10px;
+          }
+          
+          .fg-button {
+          padding: 14px 30px;
+          border-radius: 999px;
           font-size: 15px;
           font-weight: 600;
           cursor: pointer;
           border: none;
-          transition: all 0.2s;
+          transition: all 0.2s ease;
           flex: 1;
-          max-width: 200px;
-        }
-        
-        .fg-button-primary {
-          background: #111111;
+          max-width: 210px;
+          }
+          
+          .fg-button-primary {
+          background: #0f172a;
           color: #ffffff;
-        }
-        
-        .fg-button-primary:hover {
-          background: #2a2a2a;
-        }
-        
-        .fg-button-secondary {
-          background: transparent;
-          color: #111111;
-          border: 1px solid #111111;
-        }
-        
-        .fg-button-secondary:hover {
-          background: #111111;
+          box-shadow: 0 18px 35px rgba(15, 23, 42, 0.25);
+          }
+          
+          .fg-button-primary:hover {
+          background: #1f2937;
+          }
+          
+          .fg-button-secondary {
+          background: #ffffff;
+          color: #0f172a;
+          border: 1px solid rgba(15, 23, 42, 0.25);
+          }
+          
+          .fg-button-secondary:hover {
+          background: #0f172a;
           color: #ffffff;
-        }
-        
-        .fg-button-link {
+          }
+          
+          .fg-button-link {
           background: transparent;
           color: #f5f5f5;
           border: none;
@@ -272,15 +280,15 @@ const FocusGuardianContent = (() => {
         
         .fg-button-link:hover {
           color: #dedede;
-        }
-        
-        .fg-stats {
+          }
+          
+          .fg-stats {
           margin-top: 20px;
           padding-top: 20px;
-          border-top: 1px solid #eceff3;
-          font-size: 13px;
-          color: #6b6b6b;
-        }
+          border-top: 1px solid #e2e8f0;
+          font-size: 12px;
+          color: #98a2b3;
+          }
       </style>
       
       <div class="fg-warning-card">

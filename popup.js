@@ -494,11 +494,25 @@ class PopupController {
     }
     
     container.innerHTML = this.recentGoals
-      .map(goal => `<button type="button" class="recent-goal" data-goal="${escapeHtml(goal)}">${escapeHtml(goal)}</button>`)
+      .map(goal => `
+        <button type="button" class="recent-goal" data-goal="${escapeHtml(goal)}">
+          <span class="label">${escapeHtml(goal)}</span>
+          <span class="recent-goal-remove" data-remove="${escapeHtml(goal)}">×</span>
+        </button>
+      `)
       .join('');
   }
   
   handleRecentGoalClick(event) {
+    const removeTarget = event.target.closest('.recent-goal-remove');
+    if (removeTarget) {
+      const goalToRemove = removeTarget.dataset.remove || '';
+      this.recentGoals = this.recentGoals.filter(goal => goal !== goalToRemove);
+      chrome.storage.local.set({ recentTasks: this.recentGoals });
+      this.renderRecentGoals();
+      return;
+    }
+    
     const button = event.target.closest('button[data-goal]');
     if (!button) return;
     const goal = button.dataset.goal || '';

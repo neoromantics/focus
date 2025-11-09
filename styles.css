@@ -10,14 +10,19 @@ body {
   width: 450px;
   min-height: 600px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-  background: #f2f4f7;
+  background: transparent;
   color: #1b1b1b;
+  padding: 8px;
+  margin: 0;
 }
 
 .container {
   background: #ffffff;
   margin: 0;
   padding: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
 }
 
 /* Header */
@@ -30,9 +35,11 @@ header {
 }
 
 header h1 {
-  font-size: 24px;
+  font-size: 26px;
   margin-bottom: 5px;
-  font-weight: 600;
+  font-weight: 500;
+  font-family: 'Optima', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
+  letter-spacing: 0.8px;
 }
 
 .subtitle {
@@ -94,6 +101,7 @@ section h2 {
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s ease;
+  font-family: 'Optima', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
 }
 
 .settings-btn:hover {
@@ -118,6 +126,7 @@ section h2 {
   text-align: center;
   font-size: 20px;
   font-weight: 700;
+  font-family: 'Optima', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
 }
 
 .focus-goal-section .config-card {
@@ -138,6 +147,7 @@ section h2 {
 
 .focus-goal-section .btn {
   align-self: center;
+  font-family: 'Optima', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
 }
 
 .recent-goals {
@@ -149,18 +159,38 @@ section h2 {
 }
 
 .recent-goals button {
+  position: relative;
   border: 1px solid #d1d5db;
   background: #f8f9fb;
   border-radius: 999px;
-  padding: 6px 14px;
+  padding: 6px 28px 6px 14px;
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
 }
 
 .recent-goals button:hover {
   background: #111111;
   color: #ffffff;
+  border-color: #111111;
+}
+
+.recent-goal-remove {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.recent-goal-remove:hover {
+  opacity: 0.8;
 }
 
 .recent-goals .no-data {
@@ -170,10 +200,10 @@ section h2 {
 
 .config-card {
   background: #ffffff;
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 18px;
   border: 1px solid #e3e6eb;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
 }
 
 .toggle-card {
@@ -199,6 +229,7 @@ section h2 {
   font-weight: 600;
   color: #333;
   margin-bottom: 4px;
+  font-family: 'Optima', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
 }
 
 .toggle-subtitle {
@@ -329,6 +360,13 @@ section h2 {
   line-height: 1.5;
 }
 
+.task-input {
+  font-size: 16px;
+  font-weight: 500;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
 .icon-btn {
   padding: 10px 15px;
   border: 1px solid #2c2c2c;
@@ -362,6 +400,7 @@ section h2 {
   cursor: pointer;
   transition: all 0.2s ease;
   flex: 1;
+  font-family: 'Optima', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
 }
 
 .btn-primary {
