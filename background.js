@@ -4,7 +4,7 @@ console.log('🚀 Focus Guardian Background Service Worker Started (Phase 4 - AI
 
 const storage = chrome.storage.local;
 
-const DEFAULT_BLOCK_LIST = ['netflix.com', 'youtube.com', 'tiktok.com'];
+const DEFAULT_BLOCK_LIST = [];
 const STORAGE_KEYS = [
   'geminiApiKey',
   'currentTask',
@@ -509,15 +509,15 @@ WEBSITE INFO:
 - Title: ${pageTitle}
 - Description: ${pageDesc}
 
-RULES (STRICT):
-1. Social media (YouTube, Reddit, Twitter, TikTok, Instagram) = DISTRACTION unless DIRECTLY related to goal
-2. Entertainment (Netflix, games, videos) = ALWAYS DISTRACTION
-3. News/blogs = DISTRACTION unless goal involves news/research
-4. Shopping = DISTRACTION unless goal involves shopping/comparison
-5. Educational content = NOT distraction if related to goal
-6. Work tools (docs, email, calendar) = NOT distraction
-7. If content HELPS goal = NOT distraction
-8. If unclear or recreational = DISTRACTION (be strict!)
+RULES (STRICT, CONTENT-FIRST):
+1. Social/entertainment platforms (YouTube, Reddit, TikTok, Netflix, etc.) are ONLY distractions when the **specific video/post/page content** is unrelated to the goal. The domain alone is not enough—use the title/description/HTML snippet to decide.
+2. Streaming/video/gaming content that is purely for entertainment = DISTRACTION unless the title/description explicitly ties to the goal.
+3. News/blogs = DISTRACTION unless the goal mentions news/research on the same topic.
+4. Shopping/e-commerce = DISTRACTION unless the goal involves buying/comparing that product/service.
+5. Educational/tutorial/reference content that advances the goal = NOT a distraction.
+6. Productivity/work tools (docs, email, calendar, project trackers) = NOT a distraction.
+7. If the content clearly helps the goal, allow it even if the domain is usually distracting.
+8. If the intent is unclear or recreational after checking the actual content, treat it as a distraction.
 
 EXAMPLE 1: Goal="Learning Python", URL="youtube.com/watch?v=python-tutorial" → NOT distraction
 EXAMPLE 2: Goal="Learning Python", URL="youtube.com/watch?v=funny-cats" → DISTRACTION
