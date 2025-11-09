@@ -255,10 +255,14 @@ class PopupController {
       }
     }
     if (startFlight) {
-      startFlight.disabled = !!activeFlight;
+      const disabled = !!activeFlight;
+      startFlight.disabled = disabled;
+      startFlight.classList.toggle('disabled', disabled);
     }
     if (endFlight) {
-      endFlight.disabled = !activeFlight;
+      const disabled = !activeFlight;
+      endFlight.disabled = disabled;
+      endFlight.classList.toggle('disabled', disabled);
     }
     if (flightStreak) {
       const streak = this.computeFlightStreak();

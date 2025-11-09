@@ -329,17 +329,14 @@ const FocusGuardianContent = (() => {
           color: #ffffff;
           }
           
-          .fg-button-link {
-          background: transparent;
-          color: #f5f5f5;
-          border: none;
-          text-decoration: underline;
-          flex: 0;
-          padding: 0 8px;
-        }
-        
-        .fg-button-link:hover {
-          color: #dedede;
+          .fg-button-accent {
+          background: #f8fafc;
+          color: #0f172a;
+          border: 1px dashed rgba(15, 23, 42, 0.3);
+          }
+          .fg-button-accent:hover {
+          background: #0f172a;
+          color: #ffffff;
           }
           
           .fg-stats {
@@ -392,8 +389,8 @@ const FocusGuardianContent = (() => {
         <button class="fg-button fg-button-ghost" id="fg-dispute">
           Not a distraction
         </button>` : ''}
-        <button class="fg-button fg-button-link"id="fg-allow-site">
-          Always allow
+        <button class="fg-button fg-button-accent"id="fg-allow-site">
+          ★ Always Allow This Page
         </button>
       </div>
         

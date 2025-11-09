@@ -468,7 +468,7 @@ WEBSITE INFO:
 - Description: ${pageDesc}
 
 RULES (STRICT, CONTENT-FIRST):
-1. Social/entertainment platforms (YouTube, Reddit, TikTok, Netflix, etc.) are ONLY distractions when the **specific video/post/page content** is unrelated to the goal. The domain alone is not enough—use the title/description/HTML snippet to decide.
+1. Social/entertainment platforms (YouTube, Reddit, TikTok, Netflix, etc.) are ONLY distractions when the **specific video/post/page content** is unrelated to the goal. Landing on the main/home page alone is neutral—treat it as ALLOWED unless the visible content is clearly off-goal.
 2. Streaming/video/gaming content that is purely for entertainment = DISTRACTION unless the title/description explicitly ties to the goal.
 3. News/blogs = DISTRACTION unless the goal mentions news/research on the same topic.
 4. Shopping/e-commerce = DISTRACTION unless the goal involves buying/comparing that product/service.
