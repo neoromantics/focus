@@ -28,6 +28,7 @@ const ELEMENT_IDS = {
   aiAnalysisCount: 'aiAnalysisCount',
   blockListDisplay: 'blockListDisplay',
   allowListDisplay: 'allowListDisplay',
+  recentGoals: 'recentGoals',
   settingsToggle: 'settingsToggle',
   settingsPanel: 'settingsPanel',
   statsToggle: 'statsToggle',
@@ -39,6 +40,8 @@ class PopupController {
     this.elements = {};
     this.handleExtensionToggle = this.handleExtensionToggle.bind(this);
     this.onApiInputChanged = this.onApiInputChanged.bind(this);
+    this.handleRecentGoalClick = this.handleRecentGoalClick.bind(this);
+    this.recentGoals = [];
   }
   
   async init() {
@@ -59,10 +62,11 @@ class PopupController {
   }
   
   setupEventListeners() {
-    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, saveBlockList, extensionToggle, settingsToggle, statsToggle } = this.elements;
+    const { apiKeyInput, toggleKeyVisibility, saveApiKey, testApiKey, saveTask, saveBlockList, extensionToggle, settingsToggle, statsToggle, recentGoals } = this.elements;
     
     settingsToggle?.addEventListener('click', () => this.toggleSettingsPanel());
     statsToggle?.addEventListener('click', () => this.toggleStatsPanel());
+    recentGoals?.addEventListener('click', this.handleRecentGoalClick);
     
     if (apiKeyInput) {
       toggleKeyVisibility?.addEventListener('click', () => {
@@ -90,7 +94,8 @@ class PopupController {
         'blockList',
         'allowList',
         'pagesAnalyzed',
-        'extensionEnabled'
+        'extensionEnabled',
+        'recentTasks'
       ]);
       
       const extensionEnabled = data.extensionEnabled !== false;
@@ -117,6 +122,13 @@ class PopupController {
         this.elements.allowListInput.value = data.allowList.join('\n');
         this.displayAllowList(data.allowList);
       }
+      
+      if (Array.isArray(data.recentTasks)) {
+        this.recentGoals = data.recentTasks;
+      } else {
+        this.recentGoals = [];
+      }
+      this.renderRecentGoals();
       
       console.log('Loaded saved data:', {
         hasApiKey: !!data.geminiApiKey,
@@ -222,6 +234,7 @@ class PopupController {
       
       chrome.runtime.sendMessage({ action: 'taskUpdated', task }).catch(() => {});
       console.log('Task saved:', task);
+      this.registerRecentGoal(task);
     } catch (error) {
       console.error('Error saving task:', error);
       this.showMessage(messageDiv, 'Failed to save goal', 'error');
@@ -460,6 +473,49 @@ class PopupController {
     button.textContent = isHidden ? 'Stats': 'Hide Stats';
     button.setAttribute('aria-expanded', String(!isHidden));
   }
+  
+  registerRecentGoal(goal) {
+    const trimmed = (goal || '').trim();
+    if (!trimmed) return;
+    
+    const filtered = this.recentGoals.filter(item => item.toLowerCase() !== trimmed.toLowerCase());
+    this.recentGoals = [trimmed, ...filtered].slice(0, 5);
+    chrome.storage.local.set({ recentTasks: this.recentGoals });
+    this.renderRecentGoals();
+  }
+  
+  renderRecentGoals() {
+    const container = this.elements.recentGoals;
+    if (!container) return;
+    
+    if (!this.recentGoals.length) {
+      container.innerHTML = '<span class="no-data">Recent goals will appear here</span>';
+      return;
+    }
+    
+    container.innerHTML = this.recentGoals
+      .map(goal => `<button type="button" class="recent-goal" data-goal="${escapeHtml(goal)}">${escapeHtml(goal)}</button>`)
+      .join('');
+  }
+  
+  handleRecentGoalClick(event) {
+    const button = event.target.closest('button[data-goal]');
+    if (!button) return;
+    const goal = button.dataset.goal || '';
+    if (this.elements.taskInput) {
+      this.elements.taskInput.value = goal;
+      this.saveTask();
+    }
+  }
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function parseDomainList(text) {

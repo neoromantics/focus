@@ -140,6 +140,34 @@ section h2 {
   align-self: center;
 }
 
+.recent-goals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.recent-goals button {
+  border: 1px solid #d1d5db;
+  background: #f8f9fb;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.recent-goals button:hover {
+  background: #111111;
+  color: #ffffff;
+}
+
+.recent-goals .no-data {
+  font-size: 12px;
+  color: #888888;
+}
+
 .config-card {
   background: #ffffff;
   border-radius: 12px;
