@@ -219,12 +219,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'blockListUpdated':
       config.blockList = request.blockList;
+      cacheManager.clear();
       console.log('Block list updated:', config.blockList);
       sendResponse({ success: true });
       break;
       
     case 'allowListUpdated':
       updateAllowList(request.allowList || []).then(() => {
+        cacheManager.clear();
         console.log('Allow list updated:', config.allowList);
         sendResponse({ success: true });
       }).catch(error => {
@@ -311,6 +313,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'allowedUrlsUpdated':
       config.allowedUrls = loadAllowedUrlSignatures(request.allowedUrls || []);
       storage.set({ allowedUrls: config.allowedUrls });
+      cacheManager.clear();
       sendResponse({ success: true });
       break;
   }
