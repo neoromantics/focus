@@ -136,6 +136,10 @@ class PopupController {
       this.renderRecentGoals();
       this.renderAllowedUrls();
       
+      if (extensionEnabled && (!data.geminiApiKey || !data.currentTask)) {
+        showConfigReminder(data);
+      }
+      
       console.log('Loaded saved data:', {
         hasApiKey: !!data.geminiApiKey,
         hasTask: !!data.currentTask,
@@ -415,6 +419,12 @@ class PopupController {
       
       await chrome.storage.local.set({ extensionEnabled: enabled });
       this.updateExtensionStateUI(enabled);
+      if (enabled) {
+        const data = await chrome.storage.local.get(['geminiApiKey', 'currentTask']);
+        if (!data.geminiApiKey || !data.currentTask) {
+          showConfigReminder(data);
+        }
+      }
     } catch (error) {
       console.error('Error updating extension status:', error);
       this.updateExtensionStateUI(!enabled);
@@ -622,6 +632,21 @@ function formatAllowedSignature(signature = '') {
     return `${host}${path} (${key}=${value})`;
   }
   return `${host}${path}`;
+}
+
+function showConfigReminder(data) {
+  const missing = [];
+  if (!data.geminiApiKey) missing.push('API key');
+  if (!data.currentTask) missing.push('focus goal');
+  if (!missing.length) return;
+  
+  const message = `Focus is on, but ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} missing. Please update Settings.`;
+  const toggleMsg = document.getElementById('toggleMessage');
+  if (toggleMsg) {
+    toggleMsg.className = 'message message-warning';
+    toggleMsg.style.display = 'block';
+    toggleMsg.textContent = message;
+  }
 }
 
 function setButtonLoading(button, isLoading, loadingLabel) {

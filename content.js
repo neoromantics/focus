@@ -4,6 +4,7 @@ console.log('Focus Guardian loaded on:', window.location.href);
 
 const OVERLAY_ID = 'focus-guardian-overlay';
 const GOAL_NOTICE_ID = 'focus-goal-required-notice';
+const API_NOTICE_ID = 'focus-api-required-notice';
 
 const FocusGuardianContent = (() => {
   const state = {
@@ -118,7 +119,13 @@ const FocusGuardianContent = (() => {
         return;
       }
       
+      if (response && response.source === 'no-api-key') {
+        showApiKeyNotice(response);
+        return;
+      }
+      
       hideFocusGoalNotice();
+      hideApiKeyNotice();
       
       if (response && response.shouldWarn && !state.warningShown) {
         console.log('Showing warning overlay');
@@ -450,6 +457,54 @@ const FocusGuardianContent = (() => {
     }
     
     state.focusGoalNoticeVisible = false;
+  }
+  
+  function showApiKeyNotice(data) {
+    if (document.getElementById(API_NOTICE_ID)) return;
+    
+    const notice = document.createElement('div');
+    notice.id = API_NOTICE_ID;
+    notice.innerHTML = `
+      <style>
+        #${API_NOTICE_ID} {
+          position: fixed;
+          top: 12px;
+          right: 12px;
+          background: #fee2e2;
+          color: #991b1b;
+          padding: 14px 18px;
+          border-radius: 12px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+          z-index: 2147483647;
+          max-width: 320px;
+        }
+        #${API_NOTICE_ID} button {
+          margin-top: 10px;
+          border: none;
+          background: #991b1b;
+          color: #fff;
+          padding: 8px 16px;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+      </style>
+      <div>
+        <strong>Focus needs your API key.</strong>
+        <p>Please open the extension popup and add a valid Gemini API key.</p>
+        <button type="button" id="focus-open-popup">Open Settings</button>
+      </div>
+    `;
+    
+    document.body.appendChild(notice);
+    notice.querySelector('#focus-open-popup').addEventListener('click', () => {
+      sendBackgroundMessage('openPopup');
+    });
+  }
+  
+  function hideApiKeyNotice() {
+    const notice = document.getElementById(API_NOTICE_ID);
+    if (notice) notice.remove();
   }
   
   function injectFadeStyles() {
