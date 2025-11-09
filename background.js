@@ -660,7 +660,24 @@ async function handleWarningShown(url) {
   }
   if (turbulenceResult?.forcedLanding) {
     console.log(' ⚠️ Flight forced to land due to excessive distractions.');
+    notifyForcedLanding(turbulenceResult?.result?.record);
   }
+}
+
+function notifyForcedLanding(record) {
+  chrome.tabs.query({}, (tabs) => {
+    tabs.forEach((tab) => {
+      if (!tab.id || tab.url?.startsWith('chrome://')) return;
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'flightForcedLanding',
+        data: {
+          outcome: record?.outcome || 'fail',
+          turbulence: record?.turbulence || FLIGHT.TURBULENCE_LIMIT,
+          durationMs: record?.durationMs || 0
+        }
+      }).catch(() => {});
+    });
+  });
 }
 
 async function handleUserWentBack(url) {

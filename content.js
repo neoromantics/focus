@@ -13,7 +13,8 @@ const FocusGuardianContent = (() => {
     checkTimeout: null,
     focusGoalNoticeVisible: false,
     fadeStylesInjected: false,
-    flightStatus: null
+    flightStatus: null,
+    forcedLandingVisible: false
   };
   
   function init() {
@@ -33,6 +34,9 @@ const FocusGuardianContent = (() => {
         });
       } else if (request.action === 'showWarning') {
         showWarningOverlay(request.data);
+        sendResponse({ success: true });
+      } else if (request.action === 'flightForcedLanding') {
+        showForcedLandingNotice(request.data);
         sendResponse({ success: true });
       }
       return true;
@@ -445,6 +449,98 @@ const FocusGuardianContent = (() => {
         state.warningShown = false;
       }, 200);
     }
+  }
+
+  function showForcedLandingNotice(data = {}) {
+    if (state.forcedLandingVisible) return;
+    state.forcedLandingVisible = true;
+    hideWarningOverlay();
+    const existing = document.getElementById('focus-forced-landing');
+    if (existing) existing.remove();
+    const notice = document.createElement('div');
+    notice.id = 'focus-forced-landing';
+    const drops = data.turbulence ?? 5;
+    notice.innerHTML = `
+      <style>
+        #focus-forced-landing {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.85);
+          z-index: 2147483647;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #focus-forced-landing .fg-landing-card {
+          width: min(90%, 420px);
+          background: #ffffff;
+          border-radius: 24px;
+          padding: 32px;
+          text-align: center;
+          box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+          animation: fgLandingFade 0.35s ease;
+        }
+        #focus-forced-landing h3 {
+          margin: 0 0 12px;
+          font-size: 26px;
+          color: #b91c1c;
+        }
+        #focus-forced-landing p {
+          color: #475467;
+          font-size: 15px;
+          line-height: 1.6;
+          margin-bottom: 20px;
+        }
+        #focus-forced-landing .fg-btn-row {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+        #focus-forced-landing button {
+          border: none;
+          border-radius: 12px;
+          padding: 12px 18px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        #focus-forced-landing .primary {
+          background: #0f172a;
+          color: #fff;
+        }
+        #focus-forced-landing .secondary {
+          background: #e2e8f0;
+          color: #0f172a;
+        }
+        @keyframes fgLandingFade {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      </style>
+      <div class="fg-landing-card">
+        <h3>Emergency Landing</h3>
+        <p>You hit ${drops}+ distractions. Focus paused—start a new flight when you're ready.</p>
+        <div class="fg-btn-row">
+          <button type="button" class="primary" id="fg-open-flight-settings">Open Focus</button>
+          <button type="button" class="secondary" id="fg-dismiss-landing">Dismiss</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(notice);
+    notice.querySelector('#fg-open-flight-settings')?.addEventListener('click', () => {
+      sendBackgroundMessage('openPopup');
+      hideForcedLandingNotice();
+    });
+    notice.querySelector('#fg-dismiss-landing')?.addEventListener('click', hideForcedLandingNotice);
+  }
+
+  function hideForcedLandingNotice() {
+    const notice = document.getElementById('focus-forced-landing');
+    if (notice) {
+      notice.remove();
+    }
+    state.forcedLandingVisible = false;
   }
   
   function showFocusGoalNotice(data) {
